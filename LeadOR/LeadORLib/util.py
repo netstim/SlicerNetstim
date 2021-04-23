@@ -85,7 +85,7 @@ def initNthMicroElectrode(N, distanceToTargetTransformID, toolButton=None):
   traceModel = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
   traceModel.SetName("Trace Model - ME: " + str(N))
   traceModel.CreateDefaultDisplayNodes()
-  traceModel.GetDisplayNode().SetAndObserveColorNodeID(slicer.util.getNode('Plasma').GetID())
+  traceModel.GetDisplayNode().SetAndObserveColorNodeID(slicer.util.getNode('Viridis').GetID())
   traceModel.GetDisplayNode().ScalarVisibilityOn()
   shNode.SetItemParent(shNode.GetItemByDataNode(traceModel), folderID)
   shNode.SetItemAttribute(shNode.GetItemByDataNode(traceModel), 'Trace', '1')
@@ -210,8 +210,7 @@ def updateModelFromFiducial(fiducialNode, modelNode):
   wasModified = fiducialNode.StartModify()
   # get fiducial points to vtkPoints and description to vtkDoubleArray
   pts = vtk.vtkPoints()
-  valuesArray = vtk.vtkDoubleArray()
-  valuesArray.SetName('values')
+  valuesArray = []
   pos = [0.0] * 3
   i = 0
   while i < fiducialNode.GetNumberOfControlPoints():
@@ -223,33 +222,46 @@ def updateModelFromFiducial(fiducialNode, modelNode):
     else:
       fiducialNode.GetNthFiducialPosition(i,pos)
       pts.InsertNextPoint(pos)
-      valuesArray.InsertNextTuple((min(float(fiducialNode.GetNthControlPointDescription(i)),50.0),))
+      valuesArray.append(float(fiducialNode.GetNthControlPointDescription(i)))      
     # increase counter
     i += 1
   # end modify
   fiducialNode.EndModify(wasModified)
+  if not valuesArray:
+    return
+  # array to vtk
+  valuesMedian = np.median(valuesArray[:min(len(valuesArray),5)])
+  vtkValuesArray = vtk.vtkDoubleArray()
+  vtkValuesArray.SetName('values')
+  for value in valuesArray:
+    vtkValuesArray.InsertNextTuple((max((value-valuesMedian)/valuesMedian/2.0, 0.1),))
   # line source
   polyLineSource = vtk.vtkPolyLineSource()
   polyLineSource.SetPoints(pts)
   polyLineSource.Update()
   # poly data
   polyData = polyLineSource.GetOutput()
-  polyData.GetPointData().AddArray(valuesArray)
-  polyData.GetPointData().SetScalars(valuesArray)
+  polyData.GetPointData().AddArray(vtkValuesArray)
+  polyData.GetPointData().SetScalars(vtkValuesArray)
   # run tube filter
   tubeFilter = vtk.vtkTubeFilter()
   tubeFilter.SetInputData(polyData)
-  tubeFilter.SetVaryRadiusToVaryRadiusByScalar()
-  tubeFilter.SetRadius(0.1)
-  tubeFilter.SetRadiusFactor(10 * (valuesArray.GetValueRange()[-1] / 50))
-  tubeFilter.SetRadiusFactor(10)
+  tubeFilter.SetVaryRadiusToVaryRadiusByAbsoluteScalar()
   tubeFilter.SetNumberOfSides(16)
   tubeFilter.CappingOn()
   tubeFilter.Update()
+  # smooth
+  smoothFilter = vtk.vtkSmoothPolyDataFilter()
+  smoothFilter.SetInputData(tubeFilter.GetOutput())
+  smoothFilter.SetNumberOfIterations(2)
+  smoothFilter.SetRelaxationFactor(0.5)
+  smoothFilter.FeatureEdgeSmoothingOff()
+  smoothFilter.BoundarySmoothingOn()
+  smoothFilter.Update()
   # update
-  modelNode.SetAndObservePolyData(tubeFilter.GetOutput())
+  modelNode.SetAndObservePolyData(smoothFilter.GetOutput())
   modelNode.GetDisplayNode().SetActiveScalarName('values')
   modelNode.GetDisplayNode().SetAutoScalarRange(False)
-  modelNode.GetDisplayNode().SetScalarRange(0.0,50.0)
+  modelNode.GetDisplayNode().SetScalarRange(0.0,1.0)
   modelNode.Modified()
   return 
