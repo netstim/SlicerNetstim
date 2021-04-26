@@ -153,14 +153,12 @@ void qSlicerAlphaOmegaModuleWidget::onConnectPushButton()
     this->populateChannelNamesComboBox();
     this->setAndCreateRootSavePath();
     d->alphaOmegaStatusThread->start();
-    d->parameterNode->SetParameter("AOConnected", "True");
   }
   else
   {
     d->connectPushButton->setText("Connect");
     d->distanceToTargetLabel->setText("-");
     d->channelsNamesComboBox->clear();
-    d->parameterNode->SetParameter("AOConnected", "False");
   }
 
   this->setConnectingFeedback(false);

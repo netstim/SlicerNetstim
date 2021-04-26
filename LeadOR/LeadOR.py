@@ -94,12 +94,11 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
 
-
     # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
     # (in the selected parameter node).
     self.ui.distanceToTargetComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     self.ui.trajectoryTransformComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-    self.ui.startPushButton.connect("clicked(bool)", self.updateParameterNodeFromGUI)
+    self.ui.trajectoryTransformComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.guessSideFromTransform)
 
     # transforms hierarchy
     self.ui.distanceToTargetComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.setTransformsHierarchy)
@@ -123,14 +122,11 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         child.toggled.connect(lambda b,N=int(child.objectName.split('_')[-1]): self.microElectrodeLayoutToggle(b,N))
 
     # ME visibility
-    self.ui.MEModelVisCheckBox.toggled.connect(lambda b: LeadORLib.util.setMEVisibility('Model', b))
-    self.ui.MELineVisCheckBox.toggled.connect(lambda b: LeadORLib.util.setMEVisibility('Line', b))
-    self.ui.METipVisCheckBox.toggled.connect(lambda b: LeadORLib.util.setMEVisibility('Tip', b))
-    self.ui.METraceVisCheckBox.toggled.connect(lambda b: LeadORLib.util.setMEVisibility('Trace',b))
+    self.ui.MEModelVisCheckBox.toggled.connect(lambda b: self.logic.setMEVisibility('microElectrodeModel', b))
+    self.ui.MELineVisCheckBox.toggled.connect(lambda b: self.logic.setMEVisibility('trajectoryLine', b))
+    self.ui.METipVisCheckBox.toggled.connect(lambda b: self.logic.setMEVisibility('tipFiducial', b))
+    self.ui.METraceVisCheckBox.toggled.connect(lambda b: self.logic.setMEVisibility('traceModel', b))
 
-
-    # start
-    self.ui.startPushButton.clicked.connect(self.onStartPushButton)
 
     # Make sure parameter node is initialized (needed for module reload)
     self.initializeParameterNode()
@@ -189,14 +185,6 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     self.setParameterNode(self.logic.getParameterNode())
 
-    # Select default input nodes if nothing is selected yet to save a few clicks for the user
-    # if not self._parameterNode.GetNodeReference("DistanceToTargetTransform"):
-    #   distanceToTargetTransform = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLLinearTransformNode")
-    #   if distanceToTargetTransform:
-    #     self._parameterNode.SetNodeReferenceID("DistanceToTargetTransform", distanceToTargetTransform.GetID())
-    # if not self._parameterNode.GetNodeReference("TrajectoryTransform"):
-    #   self._parameterNode.SetNodeReferenceID("TrajectoryTransform", slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode').GetID())
-      
 
   def setParameterNode(self, inputParameterNode):
     """
@@ -234,25 +222,10 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.distanceToTargetComboBox.setCurrentNode(self._parameterNode.GetNodeReference("DistanceToTargetTransform"))
     self.ui.trajectoryTransformComboBox.setCurrentNode(self._parameterNode.GetNodeReference("TrajectoryTransform"))
 
-    # self.ui.leftMELabel.text = 'Lateral' if self._parameterNode.GetParameter('Side') == 'Left' else 'Medial'
-    # self.ui.rightMELabel.text = 'Medial' if self._parameterNode.GetParameter('Side') == 'Left' else 'Lateral'
-
-
-    # disable ME and trajectory modifications while running
     transformsAvailable = bool(self._parameterNode.GetNodeReference("DistanceToTargetTransform") and self._parameterNode.GetNodeReference("TrajectoryTransform"))
-    running = bool(int(self._parameterNode.GetParameter("running")))
 
-    self.ui.layoutToggleFrame.enabled            = not running and transformsAvailable
-    self.ui.microElectrodeLayoutFrame.enabled    = not running and transformsAvailable
-    self.ui.distanceToTargetComboBox.enabled     = not running
-    self.ui.trajectoryTransformComboBox.enabled  = not running
-    self.ui.AOSignalsCollapsibleButton.enabled   = transformsAvailable
-
-    # start pb text
-    self.ui.startPushButton.text = 'Stop Live Update' if running else 'Start Live Update'
-
-    # enable start
-    self.ui.startPushButton.enabled = self._parameterNode.GetParameter("AORunning") == "True"
+    self.ui.layoutToggleFrame.enabled            = transformsAvailable
+    self.ui.microElectrodeLayoutFrame.enabled    = transformsAvailable
 
     # All the GUI updates are done
     self._updatingGUIFromParameterNode = False
@@ -262,7 +235,6 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     This method is called when the user makes any change in the GUI.
     The changes are saved into the parameter node (so that they are restored when the scene is saved and loaded).
     """
-
     if self._parameterNode is None or self._updatingGUIFromParameterNode:
       return
 
@@ -270,7 +242,6 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     self._parameterNode.SetNodeReferenceID("DistanceToTargetTransform", self.ui.distanceToTargetComboBox.currentNodeID)
     self._parameterNode.SetNodeReferenceID("TrajectoryTransform", self.ui.trajectoryTransformComboBox.currentNodeID)
-    self._parameterNode.SetParameter("running", str(int(self.ui.startPushButton.checked)))
 
     self._parameterNode.EndModify(wasModified)
 
@@ -279,44 +250,12 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     This method is called when there are changes in the AlphaOmega module
     The parameters are copied
     """
-
     if self._parameterNode is None or self._updatingGUIFromParameterNode:
       return
-
     wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
-
     self._parameterNode.SetNodeReferenceID("DistanceToTargetTransform", caller.GetNodeReferenceID("DistanceToTargetTransform"))
-    self._parameterNode.SetParameter("AORunning", caller.GetParameter("Running"))
-    self._parameterNode.SetParameter("AOSignalSavePath", caller.GetParameter("SignalSavePath"))
-    self._parameterNode.SetParameter("AOSamplingFrequency", caller.GetParameter("SamplingFrequency"))
-    # channels names
-    prevChannelsNames = self._parameterNode.GetParameter("AOChannelsNames")
-    self._parameterNode.SetParameter("AOChannelsNames", caller.GetParameter("ChannelsNames"))
-    if prevChannelsNames != self._parameterNode.GetParameter("AOChannelsNames"):
-      self.updateChannelsNames()
-    
     self._parameterNode.EndModify(wasModified)
 
-  def updateChannelsNames(self):
-    channelsNames = self._parameterNode.GetParameter("AOChannelsNames").split(",")
-    for child in self.ui.microElectrodeLayoutFrame.children():
-      if isinstance(child, qt.QToolButton):
-        # init
-        AOChannelsActionGroup = qt.QActionGroup(child)
-        # add none
-        noneChannelAction = qt.QAction('None', child)
-        noneChannelAction.setCheckable(True)
-        noneChannelAction.setChecked(True)
-        AOChannelsActionGroup.addAction(noneChannelAction)
-        # add for each channel
-        for name in channelsNames:
-          channelAction = qt.QAction(name, child)
-          channelAction.setCheckable(True)
-          AOChannelsActionGroup.addAction(channelAction)
-        # set menu
-        child.actions()[0].menu().clear()
-        child.actions()[0].menu().addActions(AOChannelsActionGroup.actions())
-        child.actions()[0].menu().triggered(noneChannelAction)
 
   def setTransformsHierarchy(self):
     if self._parameterNode and self._parameterNode.GetNodeReference("DistanceToTargetTransform") and self._parameterNode.GetNodeReference("TrajectoryTransform"):
@@ -324,36 +263,51 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
   def microElectrodeLayoutToggle(self, enabled, N):
-    # enable/disable tool button actions
     toolButton = getattr(self.ui, 'METoolButton_'+str(N))
-    list(map(lambda a: a.setEnabled(enabled), toolButton.actions()))
-    # create/remove micro electrode nodes
     if enabled:
-      LeadORLib.util.initNthMicroElectrode(N, self._parameterNode.GetNodeReferenceID("DistanceToTargetTransform"), toolButton)
+      self.logic.initializeNthTrajectory(N, self._parameterNode.GetNodeReferenceID("DistanceToTargetTransform"))
+      self.setToolButtonMenu(toolButton, N)
     else:
-      LeadORLib.util.removeNthMicroElectrode(N)
+      self.logic.removeNthTrajectory(N)
+      toolButton.actions()[0].menu().clear()
+
+  def setToolButtonMenu(self, toolButton, N):
+    channelsNames = []
+    for i in range(slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLAlphaOmegaChannelNode')):
+      channelsNames.append(slicer.mrmlScene.GetNthNodeByClass(i,'vtkMRMLAlphaOmegaChannelNode').GetChannelName())
+    if not channelsNames:
+      return
+    # init
+    AOChannelsActionGroup = qt.QActionGroup(toolButton)
+    # add none
+    noneChannelAction = qt.QAction('None', toolButton)
+    noneChannelAction.setCheckable(True)
+    noneChannelAction.setChecked(True)
+    AOChannelsActionGroup.addAction(noneChannelAction)
+    # add for each channel
+    for name in channelsNames:
+      channelAction = qt.QAction(name, toolButton)
+      channelAction.setCheckable(True)
+      AOChannelsActionGroup.addAction(channelAction)
+    # set menu
+    toolButton.actions()[0].menu().clear()
+    toolButton.actions()[0].menu().addActions(AOChannelsActionGroup.actions())
+    toolButton.actions()[0].menu().triggered.connect(lambda action, trajectoryN=N: self.logic.setNthTrajectoryAOChannelNode(trajectoryN, action.text))
 
   def setMELayout(self, enabledList):
     for enabled, N in zip(enabledList, range(len(enabledList))):  
       getattr(self.ui, 'METoolButton_'+str(N)).checked = enabled
 
-  def onStartPushButton(self):
-    # get nodes
-    samplingFrequencyStr = self._parameterNode.GetParameter("AOSamplingFrequency")
-    signalSavePath = self._parameterNode.GetParameter("AOSignalSavePath")
-    channelsNames = self._parameterNode.GetParameter("AOChannelsNames").split(',')
-    distanceToTargetNode = self._parameterNode.GetNodeReference("DistanceToTargetTransform")
-    METraceFiducialIDs = LeadORLib.util.GetMETraceFiducials()
-
-    if len(METraceFiducialIDs) == 0:
+  def guessSideFromTransform(self, transformNode):
+    if not transformNode:
       return
-
-    # start/stop
-    if self.ui.startPushButton.checked:
-      self.logic.run(distanceToTargetNode, METraceFiducialIDs, channelsNames,  samplingFrequencyStr, signalSavePath)
-    else:
-      self.logic.stop(distanceToTargetNode, METraceFiducialIDs)
-
+    currentPoint = [0.0] * 4
+    matrix = vtk.vtkMatrix4x4()
+    transformNode.GetMatrixTransformToWorld(matrix)
+    matrix.MultiplyPoint([0.0, 0.0, 0.0, 1.0], currentPoint)
+    guessRightSide = currentPoint[0] > 0
+    self.ui.leftMELabel.text = 'Medial' if guessRightSide else 'Lateral'  
+    self.ui.rightMELabel.text = 'Lateral' if guessRightSide else 'Medial' 
 
 
 #
@@ -380,94 +334,42 @@ class LeadORLogic(ScriptedLoadableModuleLogic):
       import LeadORLib.util
       importlib.reload(LeadORLib.util)
 
+    self.trajectories = {}
+
     
   def setDefaultParameters(self, parameterNode):
     """
     Initialize parameter node with default settings.
     """
+    pass
 
-    if not parameterNode.GetParameter("Side"):
-      parameterNode.SetParameter("Side", "Left")
-    if not parameterNode.GetParameter("running"):
-      parameterNode.SetParameter("running", "0")
-
-  def getVTARadius(self, I, pw=60): 
-    # I: amplitude in Ampere
-    # pw: pulse width in micro seconds
-    # returns radius in meter
-    return ((pw/90)**0.3) * np.sqrt(0.72*I/165)
-
-  def run(self, distanceToTargetNode, METraceFiducialIDs, channelsNames, samplingFrequencyStr, signalSavePath):
-
-    # init matlab
-    slicer.cli.run(slicer.modules.matlabcommander, None, {'cmd': "cd('"+os.path.join(os.path.split(__file__)[0],'LeadORLib')+"')"}, update_display=False)
-    slicer.cli.run(slicer.modules.matlabcommander, None, {'cmd': "warning('off')"}, update_display=False)
-
-    # observe distance to target transform modified
-    obs = distanceToTargetNode.AddObserver(slicer.vtkMRMLTransformNode.TransformModifiedEvent, lambda c,e: self.onDistanceToTargetModified(c, METraceFiducialIDs, channelsNames, samplingFrequencyStr, signalSavePath))
-
-    # save observer in distance to target transform node
+  def initializeNthTrajectory(self, N, distanceToTargetTransformID):
+    self.trajectories[N] = LeadORLib.util.Trajectory(N, distanceToTargetTransformID)
+  
+  def removeNthTrajectory(self, N):
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-    shNode.SetItemAttribute(shNode.GetItemByDataNode(distanceToTargetNode), 'Observer', str(obs))
+    IDs = vtk.vtkIdList()
+    shNode.GetItemChildren(self.trajectories[N].folderID, IDs, True)
+    for i in range(IDs.GetNumberOfIds()):
+      shNode.RemoveItem(IDs.GetId(i))
+    shNode.RemoveItem(self.trajectories[N].folderID)
+    del self.trajectories[N]
 
-    # set fiducial description to active
-    for ID in METraceFiducialIDs:
-      fiducialNode = slicer.util.getNode(ID)
-      channelName = shNode.GetItemAttribute(shNode.GetItemByDataNode(fiducialNode), 'AO Channel')
-      fiducialNode.SetDescription('Active' if channelName in channelsNames else '')
-
-  def onDistanceToTargetModified(self, distanceToTargetNode, METraceFiducialIDs, channelsNames, samplingFrequencyStr, signalSavePath):
-    # update previous dtt
-    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-    prevDTT = shNode.GetItemAttribute(shNode.GetItemByDataNode(distanceToTargetNode), 'PrevDTT')
-    shNode.SetItemAttribute(shNode.GetItemByDataNode(distanceToTargetNode), 'PrevDTT', str('{:.3f}'.format(distanceToTargetNode.GetMatrixTransformToParent().GetElement(2,3))))
-    if prevDTT  == '': # first run
+  def setNthTrajectoryAOChannelNode(self, N, channelName):
+    if N not in self.trajectories.keys() or channelName == 'None':
       return
-    # look for file path
-    g = glob.glob(os.path.join(signalSavePath, 'AO*'+prevDTT+'*.csv'))
-    g.sort(key=os.path.getmtime)
-    if g == []:
-      return # TODO: print warning
-    dttSignalFilePath = g[-1]
-    # run cli node
-    cliNode = slicer.cli.run(slicer.modules.matlabcommander, None, {'cmd': "getMFRwave_clus('"+dttSignalFilePath+"',"+samplingFrequencyStr+")"}, update_display=False)
-    # for each ME trace fiducial, get index that matches channel name and add observer to cli node
-    for ID in METraceFiducialIDs:
-      fiducialNode = slicer.util.getNode(ID)
-      channelName = shNode.GetItemAttribute(shNode.GetItemByDataNode(fiducialNode), 'AO Channel')
-      if fiducialNode.GetDescription() == 'Active':
-        index = channelsNames.index(channelName)
-        cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, lambda c,e,n=fiducialNode,i=index: self.updateTrace(c, n, i, prevDTT))
+    channelNode = self.getAOChannelNodeFromChannelName(channelName)
+    self.trajectories[N].setAlphaOmegaChannelNode(channelNode)
+    
+  def getAOChannelNodeFromChannelName(self, channelName):
+    for i in range(slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLAlphaOmegaChannelNode')):
+      AONode = slicer.mrmlScene.GetNthNodeByClass(i,'vtkMRMLAlphaOmegaChannelNode')
+      if AONode.GetChannelName() == channelName:
+        return AONode
 
-
-  def updateTrace(self, cliNode, fiducialNode, index, dtt): 
-    # update corresponding fiducial description with output from the cli node   
-    if cliNode.GetStatusString() == 'Completed':
-      reply = cliNode.GetParameterAsString('reply')
-      matlabAns = re.search('(?<=ans [=]).*',reply).group(0)
-      matlabAnsStr = re.split('\s+',matlabAns)[1:] # empty string is returned
-      for i in range(fiducialNode.GetNumberOfControlPoints()-1,-1,-1):
-        if fiducialNode.GetNthControlPointLabel(i) == ('D = ' + dtt):
-          fiducialNode.SetNthControlPointDescription(i, matlabAnsStr[index])
-          break
-
-  def onCLIStatusModified(self, caller, event):
-    # run cli node after it finishes or is cancelled
-    if caller.GetStatusString() in ['Completed', 'Cancelled']:
-      qt.QTimer.singleShot(1000, lambda: slicer.cli.run(slicer.modules.merspike, caller, update_display=False))
-      
-  def stop(self, distanceToTarget, METraceFiducialIDs):
-    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-    ID = shNode.GetItemByDataNode(distanceToTarget)
-    # remove obs from transform
-    distanceToTarget.RemoveObserver(int(shNode.GetItemAttribute(ID, 'Observer')))
-    # stop and remove observers from cli node
-    cliNode = slicer.util.getNode(shNode.GetItemAttribute(ID, 'CLI Node'))
-    cliNode.RemoveAllObservers()
-    cliNode.Cancel()
-    # set fiducial description
-    list(map(lambda ID: slicer.util.getNode(ID).SetDescription(''), METraceFiducialIDs))
-
+  def setMEVisibility(self, modelType, visible):
+    for trajectory in self.trajectories.values():
+      getattr(trajectory, modelType).GetDisplayNode().SetVisibility3D(visible)
 
 #
 # LeadORTest
