@@ -105,6 +105,12 @@ public:
   void CloseSaveFile();
   void AppendNewDataToSaveFile(float* newDataArray);
 
+  enum
+  {
+    SaveFileClosedEvent = 99000
+  };
+
+  // Distance to target
   static void SetDriveDistanceToTarget(float dtt){DriveDistanceToTarget = dtt;};
 
 protected:
@@ -139,6 +145,7 @@ protected:
   static std::string ChannelRootSavePath;
   std::string ChannelFullSavePath{""};
 
+  // Distance to target
   static float DriveDistanceToTarget;
 
   

@@ -322,6 +322,7 @@ void vtkMRMLAlphaOmegaChannelNode::CloseSaveFile()
   {
     H5Sclose(this->H5MemoryDataspace);
     this->H5File->close();
+    this->InvokeEvent(vtkMRMLAlphaOmegaChannelNode::SaveFileClosedEvent, (void*)this->ChannelFullSavePath.c_str());
     this->ChannelFullSavePath = "";
   }
 }
