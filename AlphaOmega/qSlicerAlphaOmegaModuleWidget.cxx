@@ -153,12 +153,14 @@ void qSlicerAlphaOmegaModuleWidget::onConnectPushButton()
     this->populateChannelNamesComboBox();
     this->setAndCreateRootSavePath();
     d->alphaOmegaStatusThread->start();
+    d->parameterNode->SetParameter("AOConnected", "True");
   }
   else
   {
     d->connectPushButton->setText("Connect");
     d->distanceToTargetLabel->setText("-");
     d->channelsNamesComboBox->clear();
+    d->parameterNode->SetParameter("AOConnected", "False");
   }
 
   this->setConnectingFeedback(false);
@@ -188,7 +190,7 @@ void qSlicerAlphaOmegaModuleWidget::onTestPushButton()
   d->logic()->sayHelloWorld();
   this->setAndCreateRootSavePath();
   this->populateChannelNamesComboBox();
-  // d->alphaOmegaStatusThread->start();
+  d->alphaOmegaStatusThread->start();
 }
 
 //-----------------------------------------------------------------------------

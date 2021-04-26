@@ -239,6 +239,7 @@ void vtkSlicerAlphaOmegaLogic::createParameterNode()
   node->SetSingletonTag(this->GetModuleName().c_str());
   node->SetModuleName(this->GetModuleName().c_str());
   node->SetNodeReferenceID("DistanceToTargetTransform", "");
+  node->SetParameter("AOConnected", "False");
 }
 
 //-----------------------------------------------------------------------------
