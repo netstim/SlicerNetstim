@@ -80,7 +80,7 @@ class Trajectory():
       fileName = os.path.basename(caller.GetParameterAsString('dataFileName'))
       fiducialLabels = vtk.vtkStringArray()
       self.traceFiducials.GetControlPointLabels(fiducialLabels)
-      fiducialIndex = fiducialLabels.LookupValue('F-2')
+      fiducialIndex = fiducialLabels.LookupValue("D = %.3f" % float(fileName[9:-3]))
       self.traceFiducials.SetNthControlPointDescription(fiducialIndex, rmsValue)
       slicer.mrmlScene.RemoveNode(caller)
 
@@ -91,8 +91,9 @@ class Trajectory():
     self.translationTransform.GetMatrixTransformToWorld(matrix)
     matrix.MultiplyPoint([0.0, 0.0, 0.0, 1.0], currentPoint)
     # add fiducial in current point with distance to target as name
-    distanceToTarget = slicer.mrmlScene.GetNodeByID(self.translationTransform.GetTransformNodeID())
-    self.traceFiducials.AddFiducialFromArray(currentPoint[:3], 'D = {:.3f}'.format(distanceToTarget.GetMatrixTransformToParent().GetElement(2,3)))
+    distanceToTargetNode = slicer.mrmlScene.GetNodeByID(self.translationTransform.GetTransformNodeID())
+    distanceToTargetNode.GetMatrixTransformToParent(matrix)
+    self.traceFiducials.AddFiducialFromArray(currentPoint[:3], "D = %.3f" % matrix.GetElement(2,3))
 
   def createTranslationTransform(self):
     index = np.array(np.unravel_index(self.trajectoryNumber, (3,3))) - 1  # from 0:8 to (-1,-1) : (1,1)

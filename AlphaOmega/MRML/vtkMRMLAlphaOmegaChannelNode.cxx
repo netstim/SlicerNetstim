@@ -414,7 +414,7 @@ void vtkMRMLAlphaOmegaChannelNode::ContinuousGatherData()
 
     this->GatherData();
     float* newDataArray = this->CreateNewDataArray();
-    this->AppendNewDataToPreviewArray(newDataArray);
+    // this->AppendNewDataToPreviewArray(newDataArray);
     this->AppendNewDataToSaveFile(newDataArray);
     
     // Check to see if we should be shutting down
