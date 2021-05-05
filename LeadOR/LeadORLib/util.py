@@ -1,3 +1,4 @@
+import os
 import slicer, vtk
 import numpy as np
 import re
@@ -70,12 +71,20 @@ class Trajectory():
 
   @vtk.calldata_type(vtk.VTK_STRING)
   def onAOSaveFileClosed(self, caller, event, calldata):
-    print(calldata)
+    cliNode = slicer.cli.run(slicer.modules.rootmeansquare, None, {'dataFileName': calldata})
+    cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, self.onCLIModified)
+
+  def onCLIModified(self, caller, event):
+    if caller.GetStatusString() == 'Completed':
+      rmsValue = caller.GetParameterAsString('rootMeanSquare')
+      fileName = os.path.basename(caller.GetParameterAsString('dataFileName'))
+      fiducialLabels = vtk.vtkStringArray()
+      self.traceFiducials.GetControlPointLabels(fiducialLabels)
+      fiducialIndex = fiducialLabels.LookupValue('F-2')
+      self.traceFiducials.SetNthControlPointDescription(fiducialIndex, rmsValue)
+      slicer.mrmlScene.RemoveNode(caller)
 
   def onTransformModified(self, caller=None, event=None):
-    # check if was set to active
-    if  self.traceFiducials.GetDescription() != 'Active':
-      return
     # get current point
     currentPoint = [0.0] * 4
     matrix = vtk.vtkMatrix4x4()
