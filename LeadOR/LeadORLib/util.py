@@ -3,11 +3,13 @@ import slicer, vtk
 import numpy as np
 import re
 
+from slicer.util import VTKObservationMixin
 
 
-class Trajectory():
-
+class Trajectory(VTKObservationMixin):
+  
   def __init__(self, N, distanceToTargetTransformID):
+    VTKObservationMixin.__init__(self)
 
     self.trajectoryNumber = N
     self.alphaOmegaChannelNode = None
@@ -57,32 +59,29 @@ class Trajectory():
     # observers
   
     # add fiducial every time the transform moves
-    self.translationTransform.AddObserver(slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModified)
+    self.addObserver(self.translationTransform, slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModified)
     # update trace model every time the trace fiducials are modified 
-    self.traceFiducials.AddObserver(slicer.vtkMRMLMarkupsNode.PointAddedEvent,    self.updateModelFromFiducial)
-    self.traceFiducials.AddObserver(slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.updateModelFromFiducial)
-    self.traceFiducials.AddObserver(slicer.vtkMRMLMarkupsNode.PointRemovedEvent,  self.updateModelFromFiducial)
+    self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointAddedEvent,    self.updateModelFromFiducial)
+    self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.updateModelFromFiducial)
+    self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointRemovedEvent,  self.updateModelFromFiducial)
 
 
   def setAlphaOmegaChannelNode(self, channelNode):
     self.alphaOmegaChannelNode = channelNode
-    self.alphaOmegaChannelNode.AddObserver(slicer.vtkMRMLAlphaOmegaChannelNode.SaveFileClosedEvent, self.onAOSaveFileClosed)
-
-
-  @vtk.calldata_type(vtk.VTK_STRING)
-  def onAOSaveFileClosed(self, caller, event, calldata):
-    cliNode = slicer.cli.run(slicer.modules.rootmeansquare, None, {'dataFileName': calldata})
-    cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, self.onCLIModified)
+    self.cliNode = slicer.cli.run(slicer.modules.rootmeansquare, None, {'dataFileName': self.alphaOmegaChannelNode.GetChannelFullSavePath()})
+    self.cliNode.SetAutoRun(1)
+    self.addObserver(self.cliNode, slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, self.onCLIModified)
 
   def onCLIModified(self, caller, event):
-    if caller.GetStatusString() == 'Completed':
-      rmsValue = caller.GetParameterAsString('rootMeanSquare')
-      fileName = os.path.basename(caller.GetParameterAsString('dataFileName'))
+    if self.cliNode.GetStatusString() == 'Completed':
+      rmsValue = self.cliNode.GetParameterAsString('rootMeanSquare')
+      fileName = os.path.basename(self.cliNode.GetParameterAsString('dataFileName'))
       fiducialLabels = vtk.vtkStringArray()
       self.traceFiducials.GetControlPointLabels(fiducialLabels)
       fiducialIndex = fiducialLabels.LookupValue("D = %.3f" % float(fileName[9:-3]))
       self.traceFiducials.SetNthControlPointDescription(fiducialIndex, rmsValue)
-      slicer.mrmlScene.RemoveNode(caller)
+      self.cliNode.SetParameterAsString('dataFileName', self.alphaOmegaChannelNode.GetChannelFullSavePath())
+      self.cliNode.InvokeEvent(slicer.vtkMRMLCommandLineModuleNode.AutoRunEvent)
 
   def onTransformModified(self, caller=None, event=None):
     # get current point
