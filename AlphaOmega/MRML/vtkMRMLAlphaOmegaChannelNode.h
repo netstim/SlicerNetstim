@@ -103,6 +103,7 @@ public:
 
   void InitializeSaveFile();
   void CloseSaveFile();
+  float GetSaveFileRecordedTime();
   void AppendNewDataToSaveFile(float* newDataArray);
 
   enum

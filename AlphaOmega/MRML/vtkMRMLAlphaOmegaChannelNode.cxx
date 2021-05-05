@@ -30,6 +30,7 @@
 
 
 static const int BUFFER_HEADER_SIZE = 7;
+static const float MINIMUM_RECORDING_TIME_S = 4.0;
 
 //------------------------------------------------------------------------------
 vtkMRMLNodeNewMacro(vtkMRMLAlphaOmegaChannelNode);
@@ -320,11 +321,30 @@ void vtkMRMLAlphaOmegaChannelNode::CloseSaveFile()
 {
   if (!this->ChannelFullSavePath.empty())
   {
+    float recordedTime = this->GetSaveFileRecordedTime();
     H5Sclose(this->H5MemoryDataspace);
     this->H5File->close();
-    this->InvokeEvent(vtkMRMLAlphaOmegaChannelNode::SaveFileClosedEvent, (void*)this->ChannelFullSavePath.c_str());
+    if (recordedTime < MINIMUM_RECORDING_TIME_S)
+    {
+      vtksys::SystemTools::RemoveFile(this->ChannelFullSavePath);
+    }
+    else
+    {
+      this->InvokeEvent(vtkMRMLAlphaOmegaChannelNode::SaveFileClosedEvent, (void*)this->ChannelFullSavePath.c_str());
+    }
     this->ChannelFullSavePath = "";
   }
+}
+
+float vtkMRMLAlphaOmegaChannelNode::GetSaveFileRecordedTime()
+{
+  hsize_t dims[1] = {0};  
+  H5::DataSet   H5DataSet = this->H5File->openDataSet("data");
+  H5::DataSpace H5DataSpace = H5DataSet.getSpace();
+  H5DataSpace.getSimpleExtentDims(dims, nullptr);
+  H5DataSpace.close();
+  H5DataSet.close();
+  return (float)dims[0] / (float)this->ChannelSamplingRate;
 }
 
 //----------------------------------------------------------------------------
