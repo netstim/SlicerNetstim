@@ -277,14 +277,18 @@ void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
   // name
   filesVector.emplace_back("/");
   filesVector.push_back(getHourMinuteSecondString() + std::to_string(this->DriveDistanceToTarget) + ".h5");
+  this->ChannelFullSavePathLock.lock();
   this->ChannelFullSavePath = vtksys::SystemTools::JoinPath(filesVector);
-  
+  this->ChannelFullSavePathLock.unlock();
+
   const hsize_t ndims = 1;
 
   // create file
   hid_t plist1 = H5Pcreate(H5P_FILE_ACCESS);
   H5Pset_fclose_degree(plist1, H5F_CLOSE_STRONG);
+  H5Pset_libver_bounds(plist1, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
   this->H5File = new H5::H5File(this->ChannelFullSavePath.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, plist1);
+
 
   // save sampling rate
   H5::DataSpace samplingRateSpace(1, &ndims);
@@ -310,6 +314,9 @@ void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
   dims[0] = this->DataCapture;
   this->H5MemoryDataspace = H5Screate_simple(ndims, dims, NULL);
 
+  // Single-Writer/Multiple-Reader
+  H5Fstart_swmr_write(this->H5File->getId());
+
   // close
   H5Pclose(plist1);
   H5Pclose(plist2);
@@ -319,21 +326,8 @@ void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
 
 void vtkMRMLAlphaOmegaChannelNode::CloseSaveFile()
 {
-  if (!this->ChannelFullSavePath.empty())
-  {
-    float recordedTime = this->GetSaveFileRecordedTime();
     H5Sclose(this->H5MemoryDataspace);
     this->H5File->close();
-    if (recordedTime < MINIMUM_RECORDING_TIME_S)
-    {
-      vtksys::SystemTools::RemoveFile(this->ChannelFullSavePath);
-    }
-    else
-    {
-      this->InvokeEvent(vtkMRMLAlphaOmegaChannelNode::SaveFileClosedEvent, (void*)this->ChannelFullSavePath.c_str());
-    }
-    this->ChannelFullSavePath = "";
-  }
 }
 
 float vtkMRMLAlphaOmegaChannelNode::GetSaveFileRecordedTime()
@@ -524,5 +518,5 @@ void vtkMRMLAlphaOmegaChannelNode::AppendNewDataToSaveFile(float* newDataArray)
   H5Dwrite(H5DataSet.getId(), H5T_NATIVE_FLOAT, this->H5MemoryDataspace, H5DataSpace.getId(), H5P_DEFAULT, newDataArray);
   H5DataSpace.close();
   H5DataSet.close();
-
+  this->H5File->flush(H5F_SCOPE_LOCAL);
 }

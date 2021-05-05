@@ -106,11 +106,6 @@ public:
   float GetSaveFileRecordedTime();
   void AppendNewDataToSaveFile(float* newDataArray);
 
-  enum
-  {
-    SaveFileClosedEvent = 99000
-  };
-
   // Distance to target
   static void SetDriveDistanceToTarget(float dtt){DriveDistanceToTarget = dtt;};
 
@@ -145,7 +140,7 @@ protected:
   // Save File
   static std::string ChannelRootSavePath;
   std::string ChannelFullSavePath{""};
-
+  
   // Distance to target
   static float DriveDistanceToTarget;
 
@@ -169,6 +164,7 @@ private:
   H5::H5File* H5File;
   hid_t H5MemoryDataspace;
 
+  std::mutex ChannelFullSavePathLock;
   std::mutex DriveDistanceToTargetLock;
 
 };
