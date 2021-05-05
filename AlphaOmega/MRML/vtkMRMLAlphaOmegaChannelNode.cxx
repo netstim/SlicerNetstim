@@ -288,8 +288,8 @@ void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
 
   // save sampling rate
   H5::DataSpace samplingRateSpace(1, &ndims);
-  H5::DataSet   samplingRateSet = this->H5File->createDataSet("sr", H5T_NATIVE_INT, samplingRateSpace);
-  samplingRateSet.write(&this->ChannelSamplingRate, H5T_NATIVE_INT);
+  H5::DataSet   samplingRateSet = this->H5File->createDataSet("sr", H5::PredType::NATIVE_INT, samplingRateSpace);
+  samplingRateSet.write(&this->ChannelSamplingRate, H5::PredType::NATIVE_INT);
   samplingRateSet.close();
 
   // create dataspace
