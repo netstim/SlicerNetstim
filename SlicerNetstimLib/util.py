@@ -150,10 +150,10 @@ class SlicerDICOMDatabase():
             seriesDescription = self.getSeriesAcquisitionInformationFromTag(series, 'SeriesDescription')
             acquisitionDate = self.getSeriesAcquisitionInformationFromTag(series, 'AcquisitionDate')
             acquisitionTime = self.getSeriesAcquisitionInformationFromTag(series, 'AcquisitionTime')
+            dateTime = self.DICOMDateTimeStringToDateTime(acquisitionDate + acquisitionTime)
           except:
             continue
           descriptionMatch = self.seriesDescriptionMatch(seriesDescription, descriptionIn)
-          dateTime = self.DICOMDateTimeStringToDateTime(acquisitionDate + acquisitionTime)
           dateTimeMatch = self.seriesDateTimeMatch(dateTime, dateTimeIn)
           if descriptionMatch and dateTimeMatch:
             return series
