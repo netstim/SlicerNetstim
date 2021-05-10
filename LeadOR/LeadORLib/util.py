@@ -177,27 +177,17 @@ class Trajectory(VTKObservationMixin):
 
 
   def updateModelFromFiducial(self, caller=None, event=None):
-    # set start modify
-    wasModified = self.traceFiducials.StartModify()
     # get fiducial points to vtkPoints and description to vtkDoubleArray
-    pts = vtk.vtkPoints()
+    samplePoints = vtk.vtkPoints()
     valuesArray = []
     pos = [0.0] * 3
-    i = 0
-    while i < self.traceFiducials.GetNumberOfControlPoints():
-      if self.traceFiducials.GetNthControlPointDescription(i) == 'nan':
-        self.traceFiducials.RemoveNthControlPoint(i)
-        i -= 1
-      elif self.traceFiducials.GetNthControlPointDescription(i) == '':
+    for i in range(self.traceFiducials.GetNumberOfControlPoints()):
+      if self.traceFiducials.GetNthControlPointDescription(i) in ['','nan']:
         pass
       else:
         self.traceFiducials.GetNthFiducialPosition(i,pos)
-        pts.InsertNextPoint(pos)
-        valuesArray.append(float(self.traceFiducials.GetNthControlPointDescription(i)))      
-      # increase counter
-      i += 1
-    # end modify
-    self.traceFiducials.EndModify(wasModified)
+        samplePoints.InsertNextPoint(pos)
+        valuesArray.append(float(self.traceFiducials.GetNthControlPointDescription(i)))
     if not valuesArray:
       return
     # array to vtk
@@ -208,7 +198,7 @@ class Trajectory(VTKObservationMixin):
       vtkValuesArray.InsertNextTuple((max((value-valuesMedian)/valuesMedian/2.0, 0.1),))
     # line source
     polyLineSource = vtk.vtkPolyLineSource()
-    polyLineSource.SetPoints(pts)
+    polyLineSource.SetPoints(samplePoints)
     polyLineSource.Update()
     # poly data
     polyData = polyLineSource.GetOutput()
