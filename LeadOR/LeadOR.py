@@ -438,3 +438,94 @@ class LeadORTest(ScriptedLoadableModuleTest):
     self.assertEqual(outputScalarRange[1], inputScalarRange[1])
 
     self.delayDisplay('Test passed')
+
+#
+# Custom Layout
+#
+
+
+def tryToAddCustomLayout():
+
+  customLayout = """
+  <layout type="horizontal" split="true">
+  <item>
+    <view class="vtkMRMLViewNode" singletontag="1">
+    <property name="viewlabel" action="default">1</property>
+    </view>
+  </item>
+  <item>
+    <layout type="vertical">
+    <item>
+      <layout type="horizontal">
+      <item>
+        <view class="vtkMRMLSliceNode" singletontag="Red">
+        <property name="orientation" action="default">Axial</property>
+        <property name="viewlabel" action="default">R</property>
+        <property name="viewcolor" action="default">#F34A33</property>
+        </view>
+      </item>
+      <item>
+        <layout type="vertical">
+        <item>
+          <view class="vtkMRMLPlotViewNode" singletontag="PlotView1">
+          <property name="viewlabel" action="default">1</property>
+          </view>
+        </item>
+        <item>
+          <view class="vtkMRMLPlotViewNode" singletontag="PlotView2">
+          <property name="viewlabel" action="default">2</property>
+          </view>
+        </item>
+        <item>
+          <view class="vtkMRMLPlotViewNode" singletontag="PlotView3">
+          <property name="viewlabel" action="default">3</property>
+          </view>
+        </item>
+        </layout>
+      </item>
+      </layout>
+    </item>
+    <item>
+      <layout type="horizontal">
+      <item>
+        <view class="vtkMRMLSliceNode" singletontag="Green">
+        <property name="orientation" action="default">Coronal</property>
+        <property name="viewlabel" action="default">G</property>
+        <property name="viewcolor" action="default">#6EB04B</property>
+        </view>
+      </item>
+      <item>
+        <view class="vtkMRMLSliceNode" singletontag="Yellow">
+        <property name="orientation" action="default">Sagittal</property>
+        <property name="viewlabel" action="default">Y</property>
+        <property name="viewcolor" action="default">#EDD54C</property>
+        </view>
+      </item>
+      </layout>
+    </item>
+    </layout>
+  </item>
+  </layout>
+  """
+
+  customLayoutId = 509
+
+  try:
+    mainWindow = slicer.util.mainWindow()
+    layoutManager = slicer.app.layoutManager()
+    layoutNode = layoutManager.layoutLogic().GetLayoutNode()
+  except:
+    mainWindow = None
+
+  if mainWindow and not layoutNode.GetLayoutDescription(customLayoutId):
+    layoutNode.AddLayoutDescription(customLayoutId, customLayout)                                         
+    viewToolBar = mainWindow.findChild("QToolBar", "ViewToolBar")
+    layoutMenu = viewToolBar.widgetForAction(viewToolBar.actions()[0]).menu()
+    layoutSwitchActionParent = layoutMenu
+    layoutSwitchAction = layoutSwitchActionParent.addAction("LeadOR")
+    layoutSwitchAction.setData(customLayoutId)
+    layoutSwitchAction.setIcon(qt.QIcon(":Icons/Go.png"))
+
+# add layout once we have a layout manager
+t = qt.QTimer()
+t.singleShot(5000, tryToAddCustomLayout)
