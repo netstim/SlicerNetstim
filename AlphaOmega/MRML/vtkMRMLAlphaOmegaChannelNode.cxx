@@ -21,6 +21,7 @@
 
 // STD includes
 #include <cmath> // NAN
+#include <algorithm> // replace
 
 // Windows
 #include <Windows.h>
@@ -266,11 +267,14 @@ std::string getHourMinuteSecondString()
 //----------------------------------------------------------------------------
 void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
 {
+  std::string modifiedName = this->ChannelName;
+  std::replace(modifiedName.begin(), modifiedName.end(), '/', '_');
+  std::replace(modifiedName.begin(), modifiedName.end(), ' ', '_');
   // path
   std::vector<std::string> filesVector;
   filesVector.push_back(this->ChannelRootSavePath);
   filesVector.emplace_back("/");
-  filesVector.push_back(this->ChannelName);
+  filesVector.push_back(modifiedName);
   this->ChannelFullSavePath = vtksys::SystemTools::JoinPath(filesVector);
   vtksys::SystemTools::MakeDirectory(this->ChannelFullSavePath.c_str());
 
