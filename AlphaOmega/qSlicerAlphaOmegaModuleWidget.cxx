@@ -294,6 +294,7 @@ void qSlicerAlphaOmegaModuleWidget::updateChannelNodeFromGUI()
   alphaOmegaChannelNode->SetChannelPreviewLengthMiliSeconds(d->previewLengthSpinBox->value());
   alphaOmegaChannelNode->SetChannelPreviewTableNode(vtkMRMLTableNode::SafeDownCast(d->previewTableNodeComboBox->currentNode()));
 
+  this->updateGUIFromMRML();
 
 }
 
