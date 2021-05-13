@@ -103,7 +103,6 @@ public:
 
   void InitializeSaveFile();
   void CloseSaveFile();
-  float GetSaveFileRecordedTime();
   void AppendNewDataToSaveFile(float* newDataArray);
 
   // Distance to target
@@ -164,8 +163,7 @@ private:
   H5::H5File* H5File;
   hid_t H5MemoryDataspace;
 
-  std::mutex ChannelFullSavePathLock;
-  std::mutex DriveDistanceToTargetLock;
+  static std::mutex H5Busy;
 
 };
 

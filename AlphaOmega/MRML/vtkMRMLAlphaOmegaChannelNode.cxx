@@ -43,6 +43,9 @@ std::string vtkMRMLAlphaOmegaChannelNode::ChannelRootSavePath = "";
 float vtkMRMLAlphaOmegaChannelNode::DriveDistanceToTarget = NAN;
 
 //----------------------------------------------------------------------------
+std::mutex vtkMRMLAlphaOmegaChannelNode::H5Busy;
+
+//----------------------------------------------------------------------------
 vtkMRMLAlphaOmegaChannelNode::vtkMRMLAlphaOmegaChannelNode()
 {
   this->SetHideFromEditors(false);
@@ -52,6 +55,7 @@ vtkMRMLAlphaOmegaChannelNode::vtkMRMLAlphaOmegaChannelNode()
   this->ChannelGain = 20;
   this->ChannelBitResolution = 38.147;
   // Preview
+  this->ChannelPreviewLengthMiliSeconds = 1000;
   this->ChannelPreviewTimeArray =  vtkFloatArray::New();
   this->ChannelPreviewTimeArray->SetName(const_cast<char *>("t"));
   this->ChannelPreviewSignalArray =  vtkFloatArray::New();
@@ -199,6 +203,8 @@ std::vector<std::string> vtkMRMLAlphaOmegaChannelNode::GetAllChannelsNames()
   }
 
   channelsNames.push_back("Test");
+  channelsNames.push_back("Test2");
+  channelsNames.push_back("Test3");
 
   return channelsNames;
 }
@@ -264,6 +270,7 @@ std::string getHourMinuteSecondString()
   return oss.str();
 }
 
+
 //----------------------------------------------------------------------------
 void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
 {
@@ -281,9 +288,9 @@ void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
   // name
   filesVector.emplace_back("/");
   filesVector.push_back(getHourMinuteSecondString() + std::to_string(this->DriveDistanceToTarget) + ".h5");
-  this->ChannelFullSavePathLock.lock();
   this->ChannelFullSavePath = vtksys::SystemTools::JoinPath(filesVector);
-  this->ChannelFullSavePathLock.unlock();
+
+  vtkMRMLAlphaOmegaChannelNode::H5Busy.lock();
 
   const hsize_t ndims = 1;
 
@@ -326,24 +333,20 @@ void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
   H5Pclose(plist2);
   H5Sclose(file_space);
 
+  vtkMRMLAlphaOmegaChannelNode::H5Busy.unlock();
+
 }
 
 void vtkMRMLAlphaOmegaChannelNode::CloseSaveFile()
 {
-    H5Sclose(this->H5MemoryDataspace);
-    this->H5File->close();
+  vtkMRMLAlphaOmegaChannelNode::H5Busy.lock();
+  
+  H5Sclose(this->H5MemoryDataspace);
+  this->H5File->close();
+  
+  vtkMRMLAlphaOmegaChannelNode::H5Busy.unlock();
 }
 
-float vtkMRMLAlphaOmegaChannelNode::GetSaveFileRecordedTime()
-{
-  hsize_t dims[1] = {0};  
-  H5::DataSet   H5DataSet = this->H5File->openDataSet("data");
-  H5::DataSpace H5DataSpace = H5DataSet.getSpace();
-  H5DataSpace.getSimpleExtentDims(dims, nullptr);
-  H5DataSpace.close();
-  H5DataSet.close();
-  return (float)dims[0] / (float)this->ChannelSamplingRate;
-}
 
 //----------------------------------------------------------------------------
 static void *vtkMRMLAlphaOmegaChannelNode_ThreadFunction(vtkMultiThreader::ThreadInfo *genericData )
@@ -401,18 +404,16 @@ void vtkMRMLAlphaOmegaChannelNode::ContinuousGatherData()
 
   while (active)
   {
-    this->DriveDistanceToTargetLock.lock();
     if (!isnan(this->DriveDistanceToTarget) && previousDistanceToTarget != this->DriveDistanceToTarget)
     {
       this->CloseSaveFile();
       this->InitializeSaveFile();
       previousDistanceToTarget = this->DriveDistanceToTarget;
     }
-    this->DriveDistanceToTargetLock.unlock();
 
     this->GatherData();
     float* newDataArray = this->CreateNewDataArray();
-    // this->AppendNewDataToPreviewArray(newDataArray);
+    this->AppendNewDataToPreviewArray(newDataArray);
     this->AppendNewDataToSaveFile(newDataArray);
     
     // Check to see if we should be shutting down
@@ -501,6 +502,8 @@ void vtkMRMLAlphaOmegaChannelNode::AppendNewDataToPreviewArray(float* newDataArr
 //----------------------------------------------------------------------------
 void vtkMRMLAlphaOmegaChannelNode::AppendNewDataToSaveFile(float* newDataArray)
 {
+  vtkMRMLAlphaOmegaChannelNode::H5Busy.lock();
+
   const hsize_t ndims = 1;
 
   // Resize momory dataspace with current ammount of new data
@@ -523,4 +526,6 @@ void vtkMRMLAlphaOmegaChannelNode::AppendNewDataToSaveFile(float* newDataArray)
   H5DataSpace.close();
   H5DataSet.close();
   this->H5File->flush(H5F_SCOPE_LOCAL);
+
+  vtkMRMLAlphaOmegaChannelNode::H5Busy.unlock();
 }
