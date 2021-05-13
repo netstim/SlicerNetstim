@@ -113,6 +113,7 @@ class LeadDBSSubject():
     parameters['useRigid'] 				        = True
     parameters['costMetric'] 			        = 'MMI'
     cli = slicer.cli.run(slicer.modules.brainsfit, None, parameters, wait_for_completion=True, update_display=False)
+    slicer.util.saveNode(outTransformNode, os.path.join(self.path,'plannedSpaceToAnat.txt'))
     return outTransformNode
 
   def getModalityFromSeriesDescription(self, seriesDescription):
