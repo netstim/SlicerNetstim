@@ -53,6 +53,7 @@ public slots:
   void onAlphaOmegaChannelNodeChanged(vtkMRMLNode * node);
   void updateGUIFromMRML();
   void updateChannelNodeFromGUI();
+  void updateChannelsTables();
   void onChannelActiveStateChanged(int state);
 
 protected:

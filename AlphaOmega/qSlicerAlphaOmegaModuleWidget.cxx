@@ -22,6 +22,7 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QDateTime>
+#include <QTimer>
 
 // SlicerQt includes
 #include "qSlicerAlphaOmegaModuleWidget.h"
@@ -65,6 +66,7 @@ public:
   qAlphaOmegaStatusThread* alphaOmegaStatusThread = new qAlphaOmegaStatusThread;
   vtkMRMLScriptedModuleNode* parameterNode = nullptr;
   vtkWeakPointer<vtkMRMLAlphaOmegaChannelNode> CurrentChannelNode;
+  QTimer* updateChannelsTablesTimer;
 };
 
 //-----------------------------------------------------------------------------
@@ -128,6 +130,10 @@ void qSlicerAlphaOmegaModuleWidget::setup()
   // Singleton Parameter Node
   d->parameterNode = d->logic()->getParameterNode();
 
+  // Timer
+  d->updateChannelsTablesTimer = new QTimer(this);
+  QObject::connect(d->updateChannelsTablesTimer, SIGNAL(timeout()), this, SLOT(updateChannelsTables()));
+
 }
 
 //-----------------------------------------------------------------------------
@@ -155,12 +161,14 @@ void qSlicerAlphaOmegaModuleWidget::onConnectPushButton()
     this->populateChannelNamesComboBox();
     this->setAndCreateRootSavePath();
     d->alphaOmegaStatusThread->start();
+    d->updateChannelsTablesTimer->start(100);
   }
   else
   {
     d->connectPushButton->setText("Connect");
     d->distanceToTargetLabel->setText("-");
     d->channelsNamesComboBox->clear();
+    d->updateChannelsTablesTimer->stop();
   }
 
   this->setConnectingFeedback(false);
@@ -190,6 +198,7 @@ void qSlicerAlphaOmegaModuleWidget::onTestPushButton()
   this->setAndCreateRootSavePath();
   this->populateChannelNamesComboBox();
   d->alphaOmegaStatusThread->start();
+  d->updateChannelsTablesTimer->start(100);
 }
 
 //-----------------------------------------------------------------------------
@@ -238,7 +247,20 @@ void qSlicerAlphaOmegaModuleWidget::onDistanceToTargetTransformModified(vtkMRMLN
   d->parameterNode->SetNodeReferenceID("DistanceToTargetTransform", nodeID);
 }
 
-
+//-----------------------------------------------------------------------------
+void qSlicerAlphaOmegaModuleWidget::updateChannelsTables()
+{
+  Q_D(qSlicerAlphaOmegaModuleWidget);
+  for (int i=0; i<d->logic()->GetMRMLScene()->GetNumberOfNodesByClass("vtkMRMLAlphaOmegaChannelNode"); i++)
+  {
+    vtkMRMLAlphaOmegaChannelNode* alphaOmegaChannelNode =  vtkMRMLAlphaOmegaChannelNode::SafeDownCast(d->logic()->GetMRMLScene()->GetNthNodeByClass(i,"vtkMRMLAlphaOmegaChannelNode"));
+    vtkMRMLTableNode* channelTableNode = vtkMRMLTableNode::SafeDownCast(alphaOmegaChannelNode->GetChannelPreviewTableNode());
+    if (channelTableNode != nullptr && alphaOmegaChannelNode->GetGatheringData())
+    {
+      channelTableNode->Modified();
+    }
+  }
+}
 
 //-----------------------------------------------------------------------------
 void qSlicerAlphaOmegaModuleWidget::onAlphaOmegaChannelNodeChanged(vtkMRMLNode * node)
