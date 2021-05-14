@@ -268,6 +268,7 @@ void qSlicerAlphaOmegaModuleWidget::updateGUIFromMRML()
   d->previewLengthSpinBox->setValue(d->CurrentChannelNode->GetChannelPreviewLengthMiliSeconds());
   d->previewTableNodeComboBox->setCurrentNode(vtkMRMLTableNode::SafeDownCast(d->CurrentChannelNode->GetChannelPreviewTableNode()));
   d->channelActiveCheckBox->setChecked(d->CurrentChannelNode->GetGatheringData());
+  d->channelActiveCheckBox->setEnabled(strcmp(d->channelsNamesComboBox->currentText().toLocal8Bit().constData(),"") != 0);
 
   this->modifyingGUI = false;
 }
