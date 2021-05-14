@@ -14,7 +14,7 @@
 #include <vtkTable.h>
 #include <vtksys/SystemTools.hxx>
 
-// AlphaOmega SDK
+// AlphaO2mega SDK
 #include "AOSystemAPI.h"
 #include "AOTypes.h"
 #include "StreamFormat.h"
@@ -262,16 +262,6 @@ void vtkMRMLAlphaOmegaChannelNode::InitializeChannelPreview()
 
 
 //----------------------------------------------------------------------------
-std::string getHourMinuteSecondString()
-{
-  auto t = std::time(nullptr);
-  std::ostringstream oss;
-  oss << std::put_time(std::localtime(&t), "%HH%MM%SS");
-  return oss.str();
-}
-
-
-//----------------------------------------------------------------------------
 void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
 {
   std::string modifiedName = this->ChannelName;
@@ -287,7 +277,7 @@ void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
 
   // name
   filesVector.emplace_back("/");
-  filesVector.push_back(getHourMinuteSecondString() + std::to_string(this->DriveDistanceToTarget) + ".h5");
+  filesVector.push_back(vtksys::SystemTools::GetCurrentDateTime("%H%M%S_") + std::to_string(this->DriveDistanceToTarget) + ".h5");
   this->ChannelFullSavePath = vtksys::SystemTools::JoinPath(filesVector);
 
   vtkMRMLAlphaOmegaChannelNode::H5Busy.lock();

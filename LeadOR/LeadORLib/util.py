@@ -78,7 +78,7 @@ class Trajectory(VTKObservationMixin):
       fileName = os.path.basename(self.cliNode.GetParameterAsString('dataFileName'))
       fiducialLabels = vtk.vtkStringArray()
       self.traceFiducials.GetControlPointLabels(fiducialLabels)
-      fiducialIndex = fiducialLabels.LookupValue("D = %.3f" % float(fileName[9:-3]))
+      fiducialIndex = fiducialLabels.LookupValue("D = %.3f" % float(fileName[7:-3]))
       self.traceFiducials.SetNthControlPointDescription(fiducialIndex, rmsValue)
       self.cliNode.SetParameterAsString('dataFileName', self.alphaOmegaChannelNode.GetChannelFullSavePath())
       self.cliNode.InvokeEvent(slicer.vtkMRMLCommandLineModuleNode.AutoRunEvent)

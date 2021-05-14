@@ -21,6 +21,7 @@
 #include <QListWidgetItem>
 #include <QDir>
 #include <QDirIterator>
+#include <QDateTime>
 
 // SlicerQt includes
 #include "qSlicerAlphaOmegaModuleWidget.h"
@@ -343,14 +344,6 @@ void qSlicerAlphaOmegaModuleWidget::populateChannelNamesComboBox()
 }
 
 //-----------------------------------------------------------------------------
-std::string getYearMonthDayString()
-{
-  auto t = std::time(nullptr);
-  std::ostringstream oss;
-  oss << std::put_time(std::localtime(&t), "%Y%m%d");
-  return oss.str();
-}
-
 int getNumberOfSubDirs(const char* path)
 {
   int numberOfSubDirs = 0;
@@ -365,7 +358,7 @@ int getNumberOfSubDirs(const char* path)
 
 void qSlicerAlphaOmegaModuleWidget::setAndCreateRootSavePath()
 {
-  QString rootSavePath = QDir::cleanPath("C:/SurgeriesData/" + QString::fromStdString(getYearMonthDayString()) + QDir::separator());
+  QString rootSavePath = QDir::cleanPath("C:/LeadORData/" + QDateTime::currentDateTime().toString("yyyyMMdd") + QDir::separator());
   QDir().mkpath(rootSavePath);
 
   int numberOfSubDirs = getNumberOfSubDirs(rootSavePath.toLocal8Bit().constData());
