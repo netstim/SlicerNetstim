@@ -284,7 +284,7 @@ void qSlicerAlphaOmegaModuleWidget::updateChannelNodeFromGUI()
   vtkMRMLAlphaOmegaChannelNode* alphaOmegaChannelNode =  vtkMRMLAlphaOmegaChannelNode::SafeDownCast(d->alphaOmegaChannelComboBox->currentNode());
   
   const char* newChannelName = d->channelsNamesComboBox->currentText().toLocal8Bit().constData();
-  if (this->channelNameAlreadyInitialized(newChannelName))
+  if (this->channelNameAlreadyInitialized(newChannelName) && strcmp(newChannelName,alphaOmegaChannelNode->GetChannelName().c_str()) != 0)
   {
     newChannelName = "";
     d->channelsNamesComboBox->setCurrentText(QString::fromUtf8(newChannelName));
