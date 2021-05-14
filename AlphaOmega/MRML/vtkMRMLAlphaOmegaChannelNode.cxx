@@ -264,10 +264,12 @@ void vtkMRMLAlphaOmegaChannelNode::InitializeChannelPreview()
 //----------------------------------------------------------------------------
 void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
 {
+  vtkMRMLAlphaOmegaChannelNode::H5Busy.lock();
+
   std::string modifiedName = this->ChannelName;
   std::replace(modifiedName.begin(), modifiedName.end(), '/', '_');
   std::replace(modifiedName.begin(), modifiedName.end(), ' ', '_');
-  // path
+
   std::vector<std::string> filesVector;
   filesVector.push_back(this->ChannelRootSavePath);
   filesVector.emplace_back("/");
@@ -275,12 +277,9 @@ void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
   this->ChannelFullSavePath = vtksys::SystemTools::JoinPath(filesVector);
   vtksys::SystemTools::MakeDirectory(this->ChannelFullSavePath.c_str());
 
-  // name
   filesVector.emplace_back("/");
   filesVector.push_back(vtksys::SystemTools::GetCurrentDateTime("%H%M%S_") + std::to_string(this->DriveDistanceToTarget) + ".h5");
   this->ChannelFullSavePath = vtksys::SystemTools::JoinPath(filesVector);
-
-  vtkMRMLAlphaOmegaChannelNode::H5Busy.lock();
 
   const hsize_t ndims = 1;
 
@@ -289,7 +288,6 @@ void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
   H5Pset_fclose_degree(plist1, H5F_CLOSE_STRONG);
   H5Pset_libver_bounds(plist1, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
   this->H5File = new H5::H5File(this->ChannelFullSavePath.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, plist1);
-
 
   // save sampling rate
   H5::DataSpace samplingRateSpace(1, &ndims);
@@ -324,7 +322,6 @@ void vtkMRMLAlphaOmegaChannelNode::InitializeSaveFile()
   H5Sclose(file_space);
 
   vtkMRMLAlphaOmegaChannelNode::H5Busy.unlock();
-
 }
 
 void vtkMRMLAlphaOmegaChannelNode::CloseSaveFile()
