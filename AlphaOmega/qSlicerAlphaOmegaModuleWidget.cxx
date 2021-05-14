@@ -164,7 +164,6 @@ void qSlicerAlphaOmegaModuleWidget::onConnectPushButton()
   }
 
   this->setConnectingFeedback(false);
-
 }
 
 //-----------------------------------------------------------------------------
@@ -204,7 +203,6 @@ void qSlicerAlphaOmegaModuleWidget::onConnectionStatusModified(bool* deviceIsCon
   }
 }
 
-
 //-----------------------------------------------------------------------------
 void qSlicerAlphaOmegaModuleWidget::onDistanceToTargetModified(float* distanceToTargetMiliM)
 {
@@ -222,7 +220,6 @@ void qSlicerAlphaOmegaModuleWidget::onDistanceToTargetModified(float* distanceTo
 
   vtkMRMLAlphaOmegaChannelNode::SetDriveDistanceToTarget(*distanceToTargetMiliM);
 }
-
 
 
 //-----------------------------------------------------------------------------
@@ -270,8 +267,6 @@ void qSlicerAlphaOmegaModuleWidget::updateGUIFromMRML()
   d->bufferSizeSpinBox->setValue(d->CurrentChannelNode->GetChannelBufferSizeMiliSeconds());
   d->previewLengthSpinBox->setValue(d->CurrentChannelNode->GetChannelPreviewLengthMiliSeconds());
   d->previewTableNodeComboBox->setCurrentNode(vtkMRMLTableNode::SafeDownCast(d->CurrentChannelNode->GetChannelPreviewTableNode()));
-  d->rootSavePathLabel->setText(QString::fromStdString(d->CurrentChannelNode->GetChannelRootSavePath()));
-  d->fullSavePathLabel->setText(QString::fromStdString(d->CurrentChannelNode->GetChannelFullSavePath()));
   d->channelActiveCheckBox->setChecked(d->CurrentChannelNode->GetGatheringData());
 
   this->modifyingGUI = false;
