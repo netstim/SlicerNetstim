@@ -63,6 +63,8 @@ protected:
   void setAndCreateRootSavePath();
   void setConnectingFeedback(bool connecting);
   void setChannelWidgetEnabled(bool enabled);
+  bool channelNameAlreadyInitialized(const char* channelName);
+  std::vector<std::string> getInitializedChannelsNames();
 
   
 private slots:

@@ -41,6 +41,7 @@
 
 // STD
 #include <cmath> // NAN
+#include <algorithm> // find
 
 // vtkSlicerLogic includes
 #include "vtkSlicerAlphaOmegaLogic.h"
@@ -277,7 +278,6 @@ void qSlicerAlphaOmegaModuleWidget::updateGUIFromMRML()
 }
 
 
-
 //-----------------------------------------------------------------------------
 void qSlicerAlphaOmegaModuleWidget::updateChannelNodeFromGUI()
 {
@@ -287,7 +287,14 @@ void qSlicerAlphaOmegaModuleWidget::updateChannelNodeFromGUI()
   
   vtkMRMLAlphaOmegaChannelNode* alphaOmegaChannelNode =  vtkMRMLAlphaOmegaChannelNode::SafeDownCast(d->alphaOmegaChannelComboBox->currentNode());
   
-  alphaOmegaChannelNode->SetChannelNameAndID(d->channelsNamesComboBox->currentText().toLocal8Bit().constData());
+  const char* newChannelName = d->channelsNamesComboBox->currentText().toLocal8Bit().constData();
+  if (this->channelNameAlreadyInitialized(newChannelName))
+  {
+    newChannelName = "";
+    d->channelsNamesComboBox->setCurrentText(QString::fromUtf8(newChannelName));
+  }
+
+  alphaOmegaChannelNode->SetChannelNameAndID(newChannelName);
   alphaOmegaChannelNode->SetChannelSamplingRate(d->samplingRateSpinBox->value());
   alphaOmegaChannelNode->SetChannelGain(d->gainSpinBox->value());
   alphaOmegaChannelNode->SetChannelBitResolution(d->bitResolutionSpinBox->value());
@@ -296,7 +303,30 @@ void qSlicerAlphaOmegaModuleWidget::updateChannelNodeFromGUI()
   alphaOmegaChannelNode->SetChannelPreviewTableNode(vtkMRMLTableNode::SafeDownCast(d->previewTableNodeComboBox->currentNode()));
 
   this->updateGUIFromMRML();
+}
 
+//-----------------------------------------------------------------------------
+bool qSlicerAlphaOmegaModuleWidget::channelNameAlreadyInitialized(const char* channelName)
+{
+  std::vector<std::string> initializedChannelsNames = this->getInitializedChannelsNames();
+  if (std::find(initializedChannelsNames.begin(), initializedChannelsNames.end(), channelName) != initializedChannelsNames.end())
+  {
+    return true;
+  }
+  return false;
+}
+
+//-----------------------------------------------------------------------------
+std::vector<std::string> qSlicerAlphaOmegaModuleWidget::getInitializedChannelsNames()
+{
+  Q_D(qSlicerAlphaOmegaModuleWidget);
+  std::vector<std::string> initializedChannelsNames;
+  for (int i=0; i<d->logic()->GetMRMLScene()->GetNumberOfNodesByClass("vtkMRMLAlphaOmegaChannelNode"); i++)
+  {
+    vtkMRMLAlphaOmegaChannelNode* alphaOmegaChannelNode =  vtkMRMLAlphaOmegaChannelNode::SafeDownCast(d->logic()->GetMRMLScene()->GetNthNodeByClass(i,"vtkMRMLAlphaOmegaChannelNode"));
+    initializedChannelsNames.push_back(alphaOmegaChannelNode->GetChannelName());
+  }
+  return initializedChannelsNames;
 }
 
 //-----------------------------------------------------------------------------

@@ -196,6 +196,8 @@ std::vector<std::string> vtkMRMLAlphaOmegaChannelNode::GetAllChannelsNames()
   SInformation *pChannelsInfo = new SInformation[uChannelsCount];
 	GetAllChannels(pChannelsInfo, uChannelsCount);
 
+  channelsNames.push_back("");
+
   // fill vector. in case of error the uChannelCount = 0 and the vector is empty
   for (int i = 0; i<uChannelsCount; i++)
   {
