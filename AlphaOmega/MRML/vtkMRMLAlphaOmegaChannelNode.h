@@ -8,6 +8,7 @@
 #include <vtkMultiThreader.h>
 #include <vtkFloatArray.h>
 #include <vtkMRMLTableNode.h>
+#include <vtkMRMLPlotSeriesNode.h>
 
 // class vtkFloatArray;
 
@@ -135,6 +136,7 @@ protected:
   // Signal Preview
   int ChannelPreviewLengthMiliSeconds;
   vtkMRMLTableNode *ChannelPreviewTableNode;
+  vtkMRMLPlotSeriesNode *ChannelPreviewPlotSeriesNode;
 
   // Save File
   static std::string ChannelRootSavePath;

@@ -11,6 +11,7 @@
 #include <vtkSmartPointer.h>
 #include <vtkFloatArray.h>
 #include <vtkMRMLTableNode.h>
+#include <vtkMRMLPlotSeriesNode.h>
 #include <vtkTable.h>
 #include <vtksys/SystemTools.hxx>
 
@@ -61,6 +62,7 @@ vtkMRMLAlphaOmegaChannelNode::vtkMRMLAlphaOmegaChannelNode()
   this->ChannelPreviewSignalArray =  vtkFloatArray::New();
   this->ChannelPreviewSignalArray->SetName(const_cast<char *>("x"));
   this->ChannelPreviewTableNode = nullptr;
+  this->ChannelPreviewPlotSeriesNode = nullptr;
 }
 
 //----------------------------------------------------------------------------
@@ -223,15 +225,29 @@ int vtkMRMLAlphaOmegaChannelNode::SetChannelNameAndID(const char* name)
 void vtkMRMLAlphaOmegaChannelNode::SetChannelPreviewTableNode(vtkMRMLTableNode* tableNode)
 {
   this->ChannelPreviewTableNode = tableNode;
-  if (this->ChannelPreviewTableNode != nullptr)
+  if (this->ChannelPreviewTableNode == nullptr)
+  {
+    return;
+  }
+  else
   {
     this->ChannelPreviewTableNode->Reset(nullptr);
     this->ChannelPreviewTableNode->GetTable()->AddColumn(this->ChannelPreviewTimeArray);
     this->ChannelPreviewTableNode->GetTable()->AddColumn(this->ChannelPreviewSignalArray);
     this->ChannelPreviewTableNode->Modified();
   }
+  if (this->ChannelPreviewPlotSeriesNode == nullptr)
+  {
+    this->ChannelPreviewPlotSeriesNode = vtkMRMLPlotSeriesNode::SafeDownCast(this->GetScene()->AddNewNodeByClass("vtkMRMLPlotSeriesNode",this->GetChannelName()));
+    this->ChannelPreviewPlotSeriesNode->SetPlotType(vtkMRMLPlotSeriesNode::PlotTypeScatter);
+    this->ChannelPreviewPlotSeriesNode->SetMarkerStyle(vtkMRMLPlotSeriesNode::MarkerStyleNone);
+    this->ChannelPreviewPlotSeriesNode->SetPlotType(vtkMRMLPlotSeriesNode::PlotTypeLine);
+  }
+  this->ChannelPreviewPlotSeriesNode->SetAndObserveTableNodeID(this->ChannelPreviewTableNode->GetID());
+  this->ChannelPreviewPlotSeriesNode->SetXColumnName(this->ChannelPreviewTableNode->GetColumnName(0));
+  this->ChannelPreviewPlotSeriesNode->SetYColumnName(this->ChannelPreviewTableNode->GetColumnName(1));
+  this->ChannelPreviewPlotSeriesNode->SetColor(0,0,0);
 }
-
 
 //----------------------------------------------------------------------------
 int vtkMRMLAlphaOmegaChannelNode::InitializeChannelBuffer()
