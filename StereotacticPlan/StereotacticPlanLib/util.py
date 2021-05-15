@@ -94,19 +94,32 @@ class StereotaxyReport():
     return xyz_flt
 
   def getDICOMInformation(self):
-    cropRegion = (self.pdfWidth/2, self.pdfHeight * 0.61 , self.pdfWidth, self.pdfHeight * 0.66)
+    t = None
+    maxHeight = self.pdfHeight * 0.61
+    while not t or t.find("X Y Z")==-1:
+      maxHeight = maxHeight+1
+      t = self.pdf.pages[1].crop((self.pdfWidth/2, self.pdfHeight * 0.61 , self.pdfWidth, maxHeight)).extract_text()
+    maxHeight = maxHeight-1
+    cropRegion = (self.pdfWidth/2, self.pdfHeight * 0.61 , self.pdfWidth, maxHeight)
     tableSettings = {
         "vertical_strategy": "text",
-        "horizontal_strategy": "text",
+        "horizontal_strategy": "lines",
         "min_words_vertical": 1,
         "keep_blank_chars": True,
+        "intersection_y_tolerance":15,
+        "explicit_horizontal_lines":[maxHeight],
         }
     outList = self.pdf.pages[1].crop(cropRegion).extract_table(tableSettings)
-    outDict = {r[0]:r[1] for r in outList}
+    outDict = {r[0]:r[1].replace('\n','') for r in outList}
     outDict['SeriesDescription'] = outDict['Image Set']
     outDict['AcquisitionDateTime'] = datetime.strptime(outDict['Scanned'], '%m/%d/%Y, %I:%M %p')
     return outDict
 
+  def getMaxHeightCoord(self, coordInit, textMatch):
+    t = None
+    while not t or t.find(textMatch)==-1:
+      t = secondPage.crop((secondPage.width/2, float(secondPage.height) * 0.61 , secondPage.width, max_y)).extract_text()
+      max_y = max_y+1
 
 def exctractPlanningFromPDF(PDFFilePath):
   stereotaxyReport = StereotaxyReport(PDFFilePath)
