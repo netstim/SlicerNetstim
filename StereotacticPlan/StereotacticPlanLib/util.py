@@ -107,7 +107,9 @@ class StereotaxyReport():
         "min_words_vertical": 1,
         "keep_blank_chars": True,
         "intersection_y_tolerance":15,
+        "edge_min_length":15,
         "explicit_horizontal_lines":[maxHeight],
+        "explicit_vertical_lines":[570]
         }
     outList = self.pdf.pages[1].crop(cropRegion).extract_table(tableSettings)
     outDict = {r[0]:r[1].replace('\n','') for r in outList}
