@@ -94,13 +94,9 @@ class StereotaxyReport():
     return xyz_flt
 
   def getDICOMInformation(self):
-    t = None
-    maxHeight = self.pdfHeight * 0.61
-    while not t or t.find("X Y Z")==-1:
-      maxHeight = maxHeight+1
-      t = self.pdf.pages[1].crop((self.pdfWidth/2, self.pdfHeight * 0.61 , self.pdfWidth, maxHeight)).extract_text()
-    maxHeight = maxHeight-1
-    cropRegion = (self.pdfWidth/2, self.pdfHeight * 0.61 , self.pdfWidth, maxHeight)
+    hStart = self.findHeightContainingText(1, self.pdfHeight * 0.5, "DICOM Coordinates") + 15
+    hEnd = self.findHeightContainingText(1, self.pdfHeight * 0.61, "X Y Z") - 5
+    cropRegion = (self.pdfWidth/2, hStart , self.pdfWidth, hEnd)
     tableSettings = {
         "vertical_strategy": "text",
         "horizontal_strategy": "lines",
@@ -108,7 +104,7 @@ class StereotaxyReport():
         "keep_blank_chars": True,
         "intersection_y_tolerance":15,
         "edge_min_length":15,
-        "explicit_horizontal_lines":[maxHeight],
+        "explicit_horizontal_lines":[hEnd],
         "explicit_vertical_lines":[570]
         }
     outList = self.pdf.pages[1].crop(cropRegion).extract_table(tableSettings)
@@ -117,11 +113,14 @@ class StereotaxyReport():
     outDict['AcquisitionDateTime'] = datetime.strptime(outDict['Scanned'], '%m/%d/%Y, %I:%M %p')
     return outDict
 
-  def getMaxHeightCoord(self, coordInit, textMatch):
+  def findHeightContainingText(self, pageNumber, heightStart, matchText):
     t = None
-    while not t or t.find(textMatch)==-1:
-      t = secondPage.crop((secondPage.width/2, float(secondPage.height) * 0.61 , secondPage.width, max_y)).extract_text()
-      max_y = max_y+1
+    maxHeight = heightStart
+    while not t or t.find(matchText)==-1:
+      maxHeight = maxHeight+1
+      t = self.pdf.pages[pageNumber].crop((0, heightStart , self.pdfWidth, maxHeight)).extract_text()
+    return maxHeight
+
 
 def exctractPlanningFromPDF(PDFFilePath):
   stereotaxyReport = StereotaxyReport(PDFFilePath)
