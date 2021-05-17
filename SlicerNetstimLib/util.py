@@ -149,9 +149,12 @@ class SlicerDICOMDatabase():
         for series in self.db.seriesForStudy(study):
           try:
             seriesDescription = self.getSeriesAcquisitionInformationFromTag(series, 'SeriesDescription')
-            acquisitionDate = self.getSeriesAcquisitionInformationFromTag(series, 'AcquisitionDate')
-            acquisitionTime = self.getSeriesAcquisitionInformationFromTag(series, 'AcquisitionTime')
-            dateTime = self.DICOMDateTimeStringToDateTime(acquisitionDate + acquisitionTime)
+            acquisitionDateTime = self.getSeriesAcquisitionInformationFromTag(series, 'AcquisitionDateTime')
+            if not acquisitionDateTime:
+              acquisitionDate = self.getSeriesAcquisitionInformationFromTag(series, 'AcquisitionDate')
+              acquisitionTime = self.getSeriesAcquisitionInformationFromTag(series, 'AcquisitionTime')
+              acquisitionDateTime = acquisitionDate + acquisitionTime
+            dateTime = self.DICOMDateTimeStringToDateTime(acquisitionDateTime)
           except:
             continue
           descriptionMatch = self.seriesDescriptionMatch(seriesDescription, descriptionIn)
