@@ -113,7 +113,7 @@ class LeadDBSSubject():
     parameters['useRigid'] 				        = True
     parameters['costMetric'] 			        = 'MMI'
     cli = slicer.cli.run(slicer.modules.brainsfit, None, parameters, wait_for_completion=True, update_display=False)
-    slicer.util.saveNode(outTransformNode, os.path.join(self.path,'plannedSpaceToAnat.txt'))
+    slicer.util.saveNode(outTransformNode, os.path.join(self.path, rawAnatVolumeNode.GetName().split(' ')[-1] + 'ToAnat.txt'))
     return outTransformNode
 
   def getModalityFromSeriesDescription(self, seriesDescription):
@@ -149,9 +149,12 @@ class SlicerDICOMDatabase():
         for series in self.db.seriesForStudy(study):
           try:
             seriesDescription = self.getSeriesAcquisitionInformationFromTag(series, 'SeriesDescription')
-            acquisitionDate = self.getSeriesAcquisitionInformationFromTag(series, 'AcquisitionDate')
-            acquisitionTime = self.getSeriesAcquisitionInformationFromTag(series, 'AcquisitionTime')
-            dateTime = self.DICOMDateTimeStringToDateTime(acquisitionDate + acquisitionTime)
+            acquisitionDateTime = self.getSeriesAcquisitionInformationFromTag(series, 'AcquisitionDateTime')
+            if not acquisitionDateTime:
+              acquisitionDate = self.getSeriesAcquisitionInformationFromTag(series, 'AcquisitionDate')
+              acquisitionTime = self.getSeriesAcquisitionInformationFromTag(series, 'AcquisitionTime')
+              acquisitionDateTime = acquisitionDate + acquisitionTime
+            dateTime = self.DICOMDateTimeStringToDateTime(acquisitionDateTime)
           except:
             continue
           descriptionMatch = self.seriesDescriptionMatch(seriesDescription, descriptionIn)
