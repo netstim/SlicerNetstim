@@ -130,7 +130,7 @@ class LeadDBSSubject():
       series = SlicerDICOMDatabase().geSeriestMatchingDescriptionAndDateTime(dcmInfo['SeriesDescription'], dcmInfo['AcquisitionDateTime'])
       loadedNodeIDs.extend(DICOMUtils.loadSeriesByUID([series]))
 
-    for nodeID in loadedNodeIDs:
+    for nodeID in loadedNodeIDs[::-1]:
       volumeNode = slicer.util.getNode(nodeID)
       if re.search('.*' + dcmInfo['SeriesDescription'] + '.*', volumeNode.GetName()):
         return volumeNode
