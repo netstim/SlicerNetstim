@@ -9,7 +9,7 @@ from datetime import datetime
 from DICOMLib import DICOMUtils
 import pydicom as dicom
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'StereoacticPlan', 'StereoacticPlanLib'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "StereotacticPlan"))
 from StereotacticPlanLib.util import StereotaxyReport
 
 #------------------------------------------------------------------------------------------
