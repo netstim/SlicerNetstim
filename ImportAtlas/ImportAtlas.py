@@ -21,16 +21,12 @@ class ImportAtlas(ScriptedLoadableModule):
     self.parent.title = "ImportAtlas" # TODO make this more human readable by adding spaces
     self.parent.categories = ["Netstim"]
     self.parent.dependencies = []
-    self.parent.contributors = ["John Doe (AnyWare Corp.)"] # replace with "Firstname Lastname (Organization)"
+    self.parent.contributors = ["Simon Oxenford (Netstim Berlin)"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-This is an example of scripted loadable module bundled in an extension.
-It performs a simple thresholding on the input volume and optionally captures a screenshot.
+This module loads Lead-DBS atlases into Slicer.
 """
     self.parent.helpText += self.getDefaultModuleDocumentationLink()
-    self.parent.acknowledgementText = """
-This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc.
-and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
-""" # replace with organization, grant and thanks.
+    self.parent.acknowledgementText = "" # replace with organization, grant and thanks.
 
 #
 # ImportAtlasWidget
