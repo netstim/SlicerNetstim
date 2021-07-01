@@ -31,3 +31,4 @@ The WarpDrive module is not necessarily DBS related. WarpDrive allows for manual
 Such a scene can be represented when using Lead-DBS and modules of this extension.
 
 ![](Documentation/Scene.png?raw=true)
+![](Documentation/Screenshot.png?raw=true)

@@ -19,3 +19,6 @@ This module takes a deformation field as an input and outputs an other deformati
 - Use Axial, Sagital, Coronal views to manipulate (don't reformat with volume spacing - still work needed here).
 - Has been used mostly with normalizations to MNI space. Other grid orientation might run into issues (also work needed here).
 - The output can then be hardened in the transforms module to obtain one grid transformation from source to target.
+
+
+![](../Documentation/DrawTool.png)
