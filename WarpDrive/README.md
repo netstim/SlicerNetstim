@@ -5,7 +5,7 @@ This module takes a deformation field as an input and outputs an other deformati
 ## Tutorial
 
 1. Load the MRHead from sample data and a [MNI T1 image](http://www.bic.mni.mcgill.ca/~vfonov/icbm/2009/mni_icbm152_nlin_sym_09c_nifti.zip)
-1. Use a registration module (BRAINS, Elastix, ANTs) to normalize the MRHead to T1 space. Be sure to output a grid transform. Without hardening the transform, transform the MRHead with the result from normalization.
+1. Use a registration module (BRAINS, Elastix, ANTs) to normalize the MRHead to T1 space. Be sure to output a grid transform. Without hardening the transform, transform the MRHead with the result from normalization. (Preferably use ANTs that directly outputs grid transform node. If not might need to be converted.)
 1. Switch to the WarpDrive module and set the output transform as the input node and create a new grid transform for the output.
 1. Tools: there are a set of tools to input user modifications. In the end, these all will be creating a set of source and target fiducials that will appear under the corrections tab of the Data Control. It is useful to set the MRHead as foreground and MNI T1 as background images. Also useful to load model atlases (see the import atlas module).
     * Smudge: click and drag the image to displace it and match the template image.
