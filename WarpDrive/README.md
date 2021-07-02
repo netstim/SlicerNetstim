@@ -2,6 +2,14 @@
 
 This module takes a deformation field as an input and outputs an other deformation field which includes the user's manual modifications.
 
+## Limitations
+
+- This module is under development and some usability improvements are being worked on (see [here](https://github.com/netstim/SlicerNetstim/issues/3)).
+- The input node selector only accepts Grid Transform nodes or Volume Nodes. [Grid Transforms are legacy](https://discourse.slicer.org/t/converttogridtransform-returns-vtkmrmltransformnode-instead-of-vtkmrmlgridtransformnode/18467) and used unfrequently throughout Slicer. SlicerANTs module uses it so works well (but only available in preview release). This behavior will change in future updates.
+- When drawing using slicer preview release the preview line is not shown. This is because changes on Slicer codebase. Will need to update to match this usage.
+- Use Axial, Sagital, Coronal views to manipulate (don't reformat with volume spacing - still work needed here).
+- Has been used mostly with normalizations to MNI space. Other grid orientation might run into issues (also work needed here).
+
 ## Tutorial
 
 1. Load the MRHead from sample data and a [MNI T1 image](http://www.bic.mni.mcgill.ca/~vfonov/icbm/2009/mni_icbm152_nlin_sym_09c_nifti.zip)
@@ -16,8 +24,6 @@ This module takes a deformation field as an input and outputs an other deformati
 ### Notes
 
 - Every time the warp is calculated all source and target fiducials are used to compute it.
-- Use Axial, Sagital, Coronal views to manipulate (don't reformat with volume spacing - still work needed here).
-- Has been used mostly with normalizations to MNI space. Other grid orientation might run into issues (also work needed here).
 - The output can then be hardened in the transforms module to obtain one grid transformation from source to target.
 
 
