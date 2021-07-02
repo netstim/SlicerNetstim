@@ -5,9 +5,6 @@ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 
-import LeadORLib
-import numpy as np
-import importlib
 
 #
 # LeadOR
@@ -324,6 +321,7 @@ class LeadORLogic(ScriptedLoadableModuleLogic):
     if slicer.util.settingsValue('Developer/DeveloperMode', False, converter=slicer.util.toBool):
       import LeadORLib
       import LeadORLib.util
+      import importlib
       importlib.reload(LeadORLib.util)
 
     self.trajectories = {}
@@ -336,6 +334,7 @@ class LeadORLogic(ScriptedLoadableModuleLogic):
     pass
 
   def initializeNthTrajectory(self, N, distanceToTargetTransformID):
+    import LeadORLib
     self.trajectories[N] = LeadORLib.util.Trajectory(N, distanceToTargetTransformID)
   
   def removeNthTrajectory(self, N):

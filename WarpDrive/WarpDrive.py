@@ -6,8 +6,6 @@ from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 
 import numpy as np
-import importlib
-import glob
 
 from WarpDriveLib.Tools import NoneTool, SmudgeTool, DrawTool, PointToPointTool
 from WarpDriveLib.Helpers import GridNodeHelper, WarpDriveUtil, LeadDBSCall
@@ -463,6 +461,8 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
     ScriptedLoadableModuleLogic.__init__(self)
     if slicer.util.settingsValue('Developer/DeveloperMode', False, converter=slicer.util.toBool):
       import WarpDriveLib
+      import importlib
+      import glob
       warpDrivePath = os.path.split(__file__)[0]
       G = glob.glob(os.path.join(warpDrivePath, 'WarpDriveLib','**','*.py'))
       for g in G:

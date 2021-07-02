@@ -1,7 +1,6 @@
 import os
 import slicer, vtk
 import numpy as np
-import re
 
 from slicer.util import VTKObservationMixin
 

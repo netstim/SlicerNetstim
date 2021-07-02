@@ -4,23 +4,21 @@ import re
 from datetime import datetime
 
 
-#
-# PDF Import
-#
-
-try:
-  import pdfplumber
-except:
-  slicer.util.pip_install('pdfplumber')
-  import pdfplumber
-
-
 class StereotaxyReport():
 
   def __init__(self, PDFPath):
+    self.importPDFPlumber()
     self.pdf = pdfplumber.open(PDFPath)
     self.pdfWidth = float(self.pdf.pages[0].width)
     self.pdfHeight = float(self.pdf.pages[0].height)
+
+  @classmethod
+  def importPDFPlumber():
+    try:
+      import pdfplumber
+    except:
+      slicer.util.pip_install('pdfplumber')
+      import pdfplumber
 
   def hasPatientID(self, patientID):
     return patientID == self.getPatientInformation()['Patient ID']
