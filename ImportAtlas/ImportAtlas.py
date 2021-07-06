@@ -292,13 +292,13 @@ class ImportAtlasFileReader:
     self.parent = parent
 
   def description(self):
-    return 'LeadDBS atlas'
+    return 'Lead-DBS atlas'
 
   def fileType(self):
     return 'LeadDBSAtlas'
 
   def extensions(self):
-    return ['LeadDBS atlas (*.mat)']
+    return ['Lead-DBS atlas (*.mat)']
 
   def canLoadFile(self, filePath):
     # filename must be atlas_index.mat
