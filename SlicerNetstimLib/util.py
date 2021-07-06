@@ -41,7 +41,7 @@ class LeadDBSSubject():
     glanatInverseTransformNode = slicer.util.loadTransform(os.path.join(self.path, 'glanatInverseComposite.nii.gz'))
 
     import ImportAtlas
-    atlasPath = os.path.join(self.leaddbsPath,'templates','space','MNI_ICBM_2009b_NLIN_ASYM','atlases','DISTAL Nano (Ewert 2017)')
+    atlasPath = os.path.join(self.leaddbsPath,'templates','space','MNI_ICBM_2009b_NLIN_ASYM','atlases','DISTAL Nano (Ewert 2017)','atlas_index.mat')
     ImportAtlas.ImportAtlasLogic().readAtlas(atlasPath)
 
     anatVolumeNode.ApplyTransform(anatToframeTransformNode.GetTransformToParent())
