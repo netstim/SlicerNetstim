@@ -106,7 +106,7 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
       folderNode = folderNodes.GetItemAsObject(i)
       if 'atlas' in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(folderNode)):
         return
-    ImportAtlas.ImportAtlasLogic().run(os.path.join(self.parameterNode.GetParameter("MNIAtlasPath"), 'DISTAL Minimal (Ewert 2017)'))
+    ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(self.parameterNode.GetParameter("MNIAtlasPath"), 'DISTAL Minimal (Ewert 2017)'))
 
 
   def initFromRaw(self):
@@ -180,7 +180,7 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
 
     # load atlas
     if atlasName is not None and os.path.isdir(os.path.join(self.parameterNode.GetParameter("MNIAtlasPath"), atlasName)):
-      ImportAtlas.ImportAtlasLogic().run(os.path.join(self.parameterNode.GetParameter("MNIAtlasPath"), atlasName))
+      ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(self.parameterNode.GetParameter("MNIAtlasPath"), atlasName))
 
     # init output
     outputNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLGridTransformNode')
