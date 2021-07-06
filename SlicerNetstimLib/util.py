@@ -42,7 +42,7 @@ class LeadDBSSubject():
 
     import ImportAtlas
     atlasPath = os.path.join(self.leaddbsPath,'templates','space','MNI_ICBM_2009b_NLIN_ASYM','atlases','DISTAL Nano (Ewert 2017)')
-    ImportAtlas.ImportAtlasLogic().run(atlasPath)
+    ImportAtlas.ImportAtlasLogic().readAtlas(atlasPath)
 
     anatVolumeNode.ApplyTransform(anatToframeTransformNode.GetTransformToParent())
     anatVolumeNode.HardenTransform()
