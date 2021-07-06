@@ -68,6 +68,7 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     #
     self.addSeparator()
     self.hardenChangesCheckBox = qt.QCheckBox("Harden Changes")
+    self.hardenChangesCheckBox.checked = True
     self.addWidget(self.hardenChangesCheckBox)
 
     #
