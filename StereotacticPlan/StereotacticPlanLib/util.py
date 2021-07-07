@@ -7,12 +7,12 @@ from datetime import datetime
 class StereotaxyReport():
 
   def __init__(self, PDFPath):
-    self.importPDFPlumber()
+    StereotaxyReport.importPDFPlumber()
     self.pdf = pdfplumber.open(PDFPath)
     self.pdfWidth = float(self.pdf.pages[0].width)
     self.pdfHeight = float(self.pdf.pages[0].height)
 
-  @classmethod
+  @staticmethod
   def importPDFPlumber():
     try:
       import pdfplumber

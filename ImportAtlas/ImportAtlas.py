@@ -20,10 +20,10 @@ class ImportAtlas(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "ImportAtlas" # TODO make this more human readable by adding spaces
     self.parent.categories = ["Netstim"]
-    self.parent.dependencies = []
+    self.parent.dependencies = ["NetstimPreferences"]
     self.parent.contributors = ["Simon Oxenford (Netstim Berlin)"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-This module loads Lead-DBS atlases into Slicer.
+This module loads Lead-DBS atlases into Slicer. Set the Lead-DBS path in the Settings menu to see available atlases.
 """
     self.parent.helpText += self.getDefaultModuleDocumentationLink()
     self.parent.acknowledgementText = "" # replace with organization, grant and thanks.
@@ -52,11 +52,6 @@ class ImportAtlasWidget(ScriptedLoadableModuleWidget):
     # Layout within the dummy collapsible button
     parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
 
-    #
-    # atlases directory
-    #
-    self.atlasDirectoryButton = ctk.ctkDirectoryButton()
-    parametersFormLayout.addRow("Directory: ", self.atlasDirectoryButton)
 
     #
     # atlas combo box
@@ -74,54 +69,32 @@ class ImportAtlasWidget(ScriptedLoadableModuleWidget):
 
     # connections
     self.importButton.connect('clicked(bool)', self.onImportButton)
-    self.atlasDirectoryButton.directoryChanged.connect(self.onAtlasDirectoryChanged)
-    #self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
-    #self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
     # Add vertical spacer
     self.layout.addStretch(1)
 
-    # Refresh dir
-
-    modulePath = os.path.split(__file__)[0]
-    with open(os.path.join(modulePath,'Resources','previousDirectory.txt'), 'r') as f: 
-      directory = f.readlines()[0]
-    self.atlasDirectoryButton.directory = directory if os.path.isdir(directory) else '.'
 
   def cleanup(self):
     pass
 
-  def onAtlasDirectoryChanged(self, directory):
-    # remove atlases
-    self.atlasComboBox.clear()  
-
-    # add new dirs if valid lead paths
-    self.atlasComboBox.addItems(ImportAtlasLogic().getValidAtlases(directory))
-    
-    # if MNI use DISTAL as default
-    parentDir, dirName = os.path.split(directory)
-    parentDirName = os.path.split(parentDir)[-1]
-    if parentDirName == 'MNI_ICBM_2009b_NLIN_ASYM':
+  def enter(self):
+    validAtlases = ImportAtlasLogic().getValidAtlases()
+    self.atlasComboBox.clear()
+    self.atlasComboBox.addItems(validAtlases)
+    self.importButton.enabled = len(validAtlases) > 0
+    if 'DISTAL Minimal (Ewert 2017)' in validAtlases:
       self.atlasComboBox.setCurrentText('DISTAL Minimal (Ewert 2017)')
-    
-    # change text so its no so large
-    self.atlasDirectoryButton.text = os.path.join('[...]',parentDirName,dirName)
 
-    # enable import button if available atlases
-    self.importButton.enabled = self.atlasComboBox.itemText(0) != ''
-
-    # save for future
-    modulePath = os.path.split(__file__)[0]
-    with open(os.path.join(modulePath,'Resources','previousDirectory.txt'), 'w') as f: 
-      f.write(directory) 
 
   def onImportButton(self):
+    import NetstimPreferences
+    atlasPath = os.path.join(NetstimPreferences.LeadDBSPath().getValue(), 'templates', 'space', 'MNI_ICBM_2009b_NLIN_ASYM', 'atlases', self.atlasComboBox.currentText)
+    useSmoothAtlas = NetstimPreferences.UseSmoothAtlas().getValue()
     logic = ImportAtlasLogic()
-    atlasPath = os.path.join(self.atlasDirectoryButton.directory, self.atlasComboBox.currentText)
     qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
     qt.QApplication.processEvents()
     try:
-      logic.readAtlas(os.path.join(atlasPath,'atlas_index.mat'))
+      logic.readAtlas(os.path.join(atlasPath,'atlas_index.mat'), smooth=useSmoothAtlas)
     finally:
       qt.QApplication.restoreOverrideCursor() 
 
@@ -139,13 +112,11 @@ class ImportAtlasLogic(ScriptedLoadableModuleLogic):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
-  def getValidAtlases(self, directory):
-    validAtlases = []
-    atlases = sorted(os.listdir(directory))
-    for atlas in atlases:
-      if atlas[0] != '.' and os.path.isfile(os.path.join(directory,atlas,'atlas_index.mat')):
-        validAtlases.append(atlas)
-    return validAtlases
+  def getValidAtlases(self):
+    import NetstimPreferences
+    import glob
+    validAtlases = glob.glob(os.path.join(NetstimPreferences.LeadDBSPath().getValue(), 'templates', 'space', 'MNI_ICBM_2009b_NLIN_ASYM', 'atlases', '*', 'atlas_index.mat'))
+    return [os.path.basename(os.path.dirname(a)) for a in validAtlases]
 
   def getAtlasNames(self,atlasFile):
     """
@@ -217,7 +188,7 @@ class ImportAtlasLogic(ScriptedLoadableModuleLogic):
     shNode.SetItemDataNode(folderID, displayNode)
     shNode.ItemModified(folderID)
 
-  def readAtlas(self, atlasPath, name=None):
+  def readAtlas(self, atlasPath, smooth=True, name=None):
     """
     Run the actual algorithm
     """
@@ -272,7 +243,8 @@ class ImportAtlasLogic(ScriptedLoadableModuleLogic):
         for sideIndex,sideName in zip(range(len(subName)),subName):
           # get faces and vertices data
           ref = roi[sideIndex][index]
-          fv = atlasFile[ref]['fv']
+          fvKey = 'sfv' if (smooth and 'sfv' in atlasFile[ref].keys()) else 'fv'
+          fv = atlasFile[ref][fvKey]
           vertices = fv['vertices'][()].transpose()
           faces = fv['faces'][()].transpose()
           # create polydata
@@ -308,10 +280,14 @@ class ImportAtlasFileReader:
   def load(self, properties):
     try:
 
+      # Read Preferences
+      import NetstimPreferences
+      useSmoothAtlas = NetstimPreferences.UseSmoothAtlas().getValue()
+
       # Import data
       filePath = properties['fileName']
       logic = ImportAtlasLogic()
-      shFolderItem = logic.readAtlas(filePath)
+      shFolderItem = logic.readAtlas(filePath, smooth=useSmoothAtlas)
 
       # Create list of loaded noed IDs
       loadedNodeIDs = []
