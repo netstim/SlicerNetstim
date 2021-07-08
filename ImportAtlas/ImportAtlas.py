@@ -264,8 +264,12 @@ class FibersStructure(LeadDBSAtlasStructure):
     return fiberNode
 
   def getPointsIdx(self, sideIndex):
-    subFolder = 'rh' if sideIndex == 0 else 'lh'
-    fibersPath = os.path.join(os.path.dirname(self.atlasPath), subFolder, self.name+'.mat')
+    if self.isBilateral():
+      subFolder = 'rh' if sideIndex == 0 else 'lh'
+      fibersPath = os.path.join(os.path.dirname(self.atlasPath), subFolder, self.name+'.mat')
+    else:
+      import glob
+      fibersPath = glob.glob(os.path.join(os.path.dirname(self.atlasPath), '*', self.name+'.mat'))[0]
     import h5py
     with h5py.File(fibersPath,'r') as fibersFile:
       points = fibersFile['fibers'][()].transpose()
