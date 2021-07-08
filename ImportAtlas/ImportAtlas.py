@@ -155,6 +155,7 @@ class ImportAtlasLogic(ScriptedLoadableModuleLogic):
       
       if structure.isBilateral():
         subName = ['rh', 'lh']
+        sideIndexes = [0, 1]
         subFolderID = shNode.CreateFolderItem(folderID, structure.name)
         self.createFolderDisplayNode(subFolderID, structure.color)
         shNode.SetItemDisplayVisibility(subFolderID, structure.visibility)
@@ -162,9 +163,10 @@ class ImportAtlasLogic(ScriptedLoadableModuleLogic):
         shNode.SetItemAttribute(subFolderID, 'atlas', '1')
       else:
         subName = [structure.name]
+        sideIndexes = [1] if structure.type == 2 else [0]
         subFolderID = folderID
 
-      for sideIndex, sideName in enumerate(subName):
+      for sideIndex, sideName in zip(sideIndexes, subName):
         node = structure.getStructureNode(sideIndex)
         node.SetName(sideName)
         shNode.SetItemParent(shNode.GetItemChildWithName(shNode.GetSceneItemID(), sideName), subFolderID)
