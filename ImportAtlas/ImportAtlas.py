@@ -422,6 +422,8 @@ class LeadDBSAtlas(object):
         showIndex = atlasFile['atlases']['presets']['show'][()].squeeze() - 1 
     except:
       showIndex = np.array(range(len(atlasFile['atlases']['pixdim'][0])))
+    if not showIndex.shape:
+      showIndex = np.array([showIndex])
     return showIndex
 
   def readPixdimType(self, atlasFile):
