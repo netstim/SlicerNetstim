@@ -384,6 +384,9 @@ class LeadDBSAtlas(object):
         structure = FibersStructure()
       elif pixdimType == 'discfibers':
         structure = DiscFibersStructure()
+      if isinstance(structure, FibersStructure) and not hasattr(slicer.modules,'tractographydisplay'):
+        qt.QMessageBox().warning(qt.QWidget(), "Error", "Install SlicerDMRI Extension to load fiber atlases")
+        continue
       structure.atlasPath = atlasPath
       structure.index = i
       structure.name = names[i]
