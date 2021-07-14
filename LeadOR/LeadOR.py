@@ -27,6 +27,32 @@ This module controls micro electrode settings for deep brain stimulation surgery
     self.parent.acknowledgementText = ""
 
 
+    # Additional initialization step after application startup is complete
+    slicer.app.connect("startupCompleted()", registerSampleData)
+
+#
+# Register sample data sets in Sample Data module
+#
+
+def registerSampleData():
+  """
+  Add data sets to Sample Data module.
+  """
+
+  import SampleData
+  iconsPath = os.path.join(os.path.dirname(__file__), 'Resources/Icons')
+
+  SampleData.SampleDataLogic.registerCustomSampleDataSource(
+    category='LeadOR',
+    sampleName='Scene with planning',
+    thumbnailFileName=os.path.join(iconsPath, 'LeadOR1.png'),
+    uris="https://github.com/netstim/SlicerNetstim/releases/download/SampleData/LeadOR1.mrb",
+    fileNames='LeadOR1.mrb',
+    loadFiles=True,
+    loadFileType='SceneFile'
+  )
+
+
 #
 # LeadORWidget
 #
