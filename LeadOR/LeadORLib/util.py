@@ -62,13 +62,11 @@ class Trajectory(VTKObservationMixin):
     # update trace model every time the trace fiducials are modified 
     self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointAddedEvent,    self.updateModelFromFiducial)
     self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.updateModelFromFiducial)
-    self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointRemovedEvent,  self.updateModelFromFiducial)
 
 
   def setAlphaOmegaChannelNode(self, channelNode):
     self.alphaOmegaChannelNode = channelNode
     self.cliNode = slicer.cli.run(slicer.modules.rootmeansquare, None, {'dataFileName': self.alphaOmegaChannelNode.GetChannelFullSavePath()})
-    self.cliNode.SetAutoRun(1)
     self.addObserver(self.cliNode, slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, self.onCLIModified)
 
   def onCLIModified(self, caller, event):
@@ -77,10 +75,12 @@ class Trajectory(VTKObservationMixin):
       fileName = os.path.basename(self.cliNode.GetParameterAsString('dataFileName'))
       fiducialLabels = vtk.vtkStringArray()
       self.traceFiducials.GetControlPointLabels(fiducialLabels)
-      fiducialIndex = fiducialLabels.LookupValue("D = %.3f" % float(fileName[7:-3]))
-      self.traceFiducials.SetNthControlPointDescription(fiducialIndex, rmsValue)
+      fiducialIndex = fiducialLabels.LookupValue("D = " + fileName[7:-6])
+      if fiducialIndex > -1:
+        self.traceFiducials.SetNthControlPointDescription(fiducialIndex, rmsValue)
+    if self.cliNode.GetStatusString() in ['Completed', 'Cancelled']:
       self.cliNode.SetParameterAsString('dataFileName', self.alphaOmegaChannelNode.GetChannelFullSavePath())
-      self.cliNode.InvokeEvent(slicer.vtkMRMLCommandLineModuleNode.AutoRunEvent)
+      slicer.cli.run(slicer.modules.rootmeansquare, self.cliNode)
 
   def onTransformModified(self, caller=None, event=None):
     # get current point
@@ -180,13 +180,17 @@ class Trajectory(VTKObservationMixin):
     samplePoints = vtk.vtkPoints()
     valuesArray = []
     pos = [0.0] * 3
-    for i in range(self.traceFiducials.GetNumberOfControlPoints()):
+    i = 0
+    while i < self.traceFiducials.GetNumberOfControlPoints():
       if self.traceFiducials.GetNthControlPointDescription(i) in ['','nan']:
-        pass
+        if i < self.traceFiducials.GetNumberOfControlPoints() - 3:
+          self.traceFiducials.RemoveNthControlPoint(i)
+          continue
       else:
         self.traceFiducials.GetNthFiducialPosition(i,pos)
         samplePoints.InsertNextPoint(pos)
         valuesArray.append(float(self.traceFiducials.GetNthControlPointDescription(i)))
+      i += 1
     if not valuesArray:
       return
     # array to vtk
