@@ -47,6 +47,12 @@ class Trajectory(VTKObservationMixin):
     self.traceFiducials.GetDisplayNode().SetVisibility(0)
     shNode.SetItemParent(shNode.GetItemByDataNode(self.traceFiducials), self.folderID)
 
+    # cluster fiducials
+    self.clusterFiducials = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    self.clusterFiducials.SetName("Cluster Fiducial - ME: " + str(N))
+    self.clusterFiducials.GetDisplayNode().SetVisibility(0)
+    shNode.SetItemParent(shNode.GetItemByDataNode(self.clusterFiducials), self.folderID)
+
     # trace model
     self.traceModel = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
     self.traceModel.SetName("Trace Model - ME: " + str(N))
@@ -66,21 +72,43 @@ class Trajectory(VTKObservationMixin):
 
   def setAlphaOmegaChannelNode(self, channelNode):
     self.alphaOmegaChannelNode = channelNode
-    self.cliNode = slicer.cli.run(slicer.modules.rootmeansquare, None, {'dataFileName': self.alphaOmegaChannelNode.GetChannelFullSavePath()})
-    self.addObserver(self.cliNode, slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, self.onCLIModified)
+    if hasattr(slicer.modules,'rootmeansquare'):
+      self.RMSNode = slicer.cli.run(slicer.modules.rootmeansquare, None, {'dataFileName': self.alphaOmegaChannelNode.GetChannelFullSavePath()})
+      self.addObserver(self.RMSNode, slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, self.onRMSModified)
+    if hasattr(slicer.modules,'matlabcommander'):
+      self.WCNode = slicer.cli.run(slicer.modules.matlabcommander, None, {'cmd':'addpath("C:\\repo\\SlicerNetstim\\LeadOR\\LeadORLib");addpath(genpath("C:\\Users\\simon\\Documents\\MATLAB\\wave_clus"))'}) # TODO
+      self.addObserver(self.WCNode, slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, self.onWCModified)
 
-  def onCLIModified(self, caller, event):
-    if self.cliNode.GetStatusString() == 'Completed':
-      rmsValue = self.cliNode.GetParameterAsString('rootMeanSquare')
-      fileName = os.path.basename(self.cliNode.GetParameterAsString('dataFileName'))
-      fiducialLabels = vtk.vtkStringArray()
-      self.traceFiducials.GetControlPointLabels(fiducialLabels)
-      fiducialIndex = fiducialLabels.LookupValue("D = " + fileName[7:-6])
+  def onRMSModified(self, caller, event):
+    rmsValue = self.RMSNode.GetParameterAsString('rootMeanSquare')
+    fullFileName = self.RMSNode.GetParameterAsString('dataFileName')
+    if self.RMSNode.GetStatusString() == 'Completed':
+      fiducialIndex = self.getFiducialIndexFromLabel("D = " + os.path.basename(fullFileName)[7:-6])
       if fiducialIndex > -1:
         self.traceFiducials.SetNthControlPointDescription(fiducialIndex, rmsValue)
-    if self.cliNode.GetStatusString() in ['Completed', 'Cancelled']:
-      self.cliNode.SetParameterAsString('dataFileName', self.alphaOmegaChannelNode.GetChannelFullSavePath())
-      slicer.cli.run(slicer.modules.rootmeansquare, self.cliNode)
+    if self.RMSNode.GetStatusString() in ['Completed', 'Cancelled']:
+      self.RMSNode.SetParameterAsString('dataFileName', self.alphaOmegaChannelNode.GetChannelFullSavePath())
+      slicer.cli.run(slicer.modules.rootmeansquare, self.RMSNode)
+    if (rmsValue not in ['', 'nan']) and (fullFileName is not self.RMSNode.GetParameterAsString('dataFileName')):
+      self.WCNode.SetParameterAsString('cmd', 'get_is_cluster("' + fullFileName + '")')
+      slicer.cli.run(slicer.modules.matlabcommander, self.WCNode)
+
+  def onWCModified(self, caller, event):
+    if self.WCNode.GetStatusString() == 'Completed':
+      reply = self.RMSNode.GetParameterAsString('reply')
+      isCluster = reply and reply[-1] == '1'
+      if isCluster:
+        fullFileName = self.WCNode.GetParameterAsString('dataFileName')[16:-2]
+        fiducialIndex = self.getFiducialIndexFromLabel("D = " + os.path.basename(fullFileName)[7:-6])
+        if fiducialIndex > -1:
+          p = [0]*3
+          self.traceFiducials.GetNthControlPointPositionWorld(fiducialIndex, p)
+          self.clusterFiducials.AddFiducialFromArray(p)
+
+  def getFiducialIndexFromLabel(self, label):
+    fiducialLabels = vtk.vtkStringArray()
+    self.traceFiducials.GetControlPointLabels(fiducialLabels)
+    return fiducialLabels.LookupValue(label)
 
   def onTransformModified(self, caller=None, event=None):
     # get current point
