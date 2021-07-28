@@ -150,7 +150,14 @@
          <item>
           <widget class="QCheckBox" name="METraceVisCheckBox">
            <property name="text">
-            <string>Trace</string>
+            <string>NRMS</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="MEClustersCheckBox">
+           <property name="text">
+            <string>Clusters</string>
            </property>
           </widget>
          </item>
@@ -690,6 +697,17 @@ QToolButton::menu-indicator {
  </widget>
  <customwidgets>
   <customwidget>
+   <class>ctkCollapsibleButton</class>
+   <extends>QWidget</extends>
+   <header>ctkCollapsibleButton.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ctkSliderWidget</class>
+   <extends>QWidget</extends>
+   <header>ctkSliderWidget.h</header>
+  </customwidget>
+  <customwidget>
    <class>qMRMLLinearTransformSlider</class>
    <extends>qMRMLSliderWidget</extends>
    <header>qMRMLLinearTransformSlider.h</header>
@@ -709,17 +727,6 @@ QToolButton::menu-indicator {
    <extends>QWidget</extends>
    <header>qMRMLWidget.h</header>
    <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>ctkCollapsibleButton</class>
-   <extends>QWidget</extends>
-   <header>ctkCollapsibleButton.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>ctkSliderWidget</class>
-   <extends>QWidget</extends>
-   <header>ctkSliderWidget.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

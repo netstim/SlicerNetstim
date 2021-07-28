@@ -29,6 +29,7 @@ This module controls micro electrode settings for deep brain stimulation surgery
 
     # Additional initialization step after application startup is complete
     slicer.app.connect("startupCompleted()", registerSampleData)
+    slicer.app.connect("startupCompleted()", addCustomLayout)
 
 #
 # Register sample data sets in Sample Data module
@@ -141,6 +142,7 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.MELineVisCheckBox.toggled.connect(lambda b: self.logic.setMEVisibility('trajectoryLine', b))
     self.ui.METipVisCheckBox.toggled.connect(lambda b: self.logic.setMEVisibility('tipFiducial', b))
     self.ui.METraceVisCheckBox.toggled.connect(lambda b: self.logic.setMEVisibility('traceModel', b))
+    self.ui.MEClustersCheckBox.toggled.connect(lambda b: self.logic.setMEVisibility('clusterFiducials', b))
 
 
     # Make sure parameter node is initialized (needed for module reload)
@@ -461,7 +463,7 @@ class LeadORTest(ScriptedLoadableModuleTest):
 #
 
 
-def tryToAddCustomLayout():
+def addCustomLayout():
 
   customLayout = """
   <layout type="horizontal" split="true">
@@ -542,7 +544,3 @@ def tryToAddCustomLayout():
     layoutSwitchAction = layoutSwitchActionParent.addAction("LeadOR")
     layoutSwitchAction.setData(customLayoutId)
     layoutSwitchAction.setIcon(qt.QIcon(":Icons/Go.png"))
-
-# add layout once we have a layout manager
-t = qt.QTimer()
-t.singleShot(5000, tryToAddCustomLayout)
