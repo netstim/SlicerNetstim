@@ -4,6 +4,9 @@ import numpy as np
 
 from slicer.util import VTKObservationMixin
 
+#
+# Trajectory
+#
 
 class Trajectory(VTKObservationMixin):
   
@@ -89,7 +92,7 @@ class Trajectory(VTKObservationMixin):
     if self.RMSNode.GetStatusString() in ['Completed', 'Cancelled']:
       self.RMSNode.SetParameterAsString('dataFileName', self.alphaOmegaChannelNode.GetChannelFullSavePath())
       slicer.cli.run(slicer.modules.rootmeansquare, self.RMSNode)
-    if (rmsValue not in ['', 'nan']) and (fullFileName is not self.RMSNode.GetParameterAsString('dataFileName')):
+    if (rmsValue not in ['', 'nan']) and (fullFileName != self.RMSNode.GetParameterAsString('dataFileName')):
       self.WCNode.SetParameterAsString('cmd', 'get_is_cluster("' + fullFileName + '")')
       slicer.cli.run(slicer.modules.matlabcommander, self.WCNode)
 
@@ -257,3 +260,87 @@ class Trajectory(VTKObservationMixin):
     self.traceModel.GetDisplayNode().SetScalarRange(0.0,1.0)
     self.traceModel.Modified()
     return 
+
+
+#
+# VTA
+#
+
+
+class VTASource():
+
+  def __init__(self):
+
+    self.sphereSource = self.createSphereSource()
+    self.sphereFunction = self.createSphereFunction()
+    self.ROINode = self.createROI()
+    self.VTAModel = self.createVTAModel()
+    self.markupsNode = self.createMarkups()
+    self.setFibersVisibility(True)
+
+  def SetRadius(self, r):
+    self.sphereSource.SetRadius(r)
+    self.sphereSource.Update()
+    self.sphereFunction.SetRadius(r)
+    # fiberBundleNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLFiberBundleNode')
+    # if fiberBundleNode:
+      # fiberBundleNode.InvokeCustomModifiedEvent(slicer.vtkMRMLModelNode.MeshModifiedEvent)
+
+  def SetAndObserveTransformNodeID(self, transformNodeID):
+    for node in [self.markupsNode, self.VTAModel]:
+      node.SetAndObserveTransformNodeID(transformNodeID)
+    slicer.util.getNode(transformNodeID).AddObserver(slicer.vtkMRMLTransformNode.TransformModifiedEvent, lambda c,e: self.transformModified())
+    self.transformModified()
+    
+  def transformModified(self):
+    p = [0]*3
+    self.markupsNode.GetNthControlPointPositionWorld(0,p)
+    self.sphereFunction.SetCenter(p)
+    # fiberBundleNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLFiberBundleNode')
+    # if fiberBundleNode:
+      # fiberBundleNode.InvokeCustomModifiedEvent(slicer.vtkMRMLModelNode.MeshModifiedEvent)
+
+  def createMarkups(self):
+    markupsNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    markupsNode.AddFiducialFromArray([0,0,3])
+    markupsNode.SetDisplayVisibility(0)
+    return markupsNode
+
+  def createSphereSource(self):
+    sphereSource = vtk.vtkSphereSource()
+    sphereSource.SetCenter(0,0,3)
+    sphereSource.SetPhiResolution(12)
+    sphereSource.SetThetaResolution(12)
+    return sphereSource
+
+  def createSphereFunction(self):
+    sphereFun = vtk.vtkSphere()
+    return sphereFun
+
+  def createROI(self):
+    ROINode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLAnnotationROINode')
+    ROINode.SetDisplayVisibility(0)
+    return ROINode
+
+  def createVTAModel(self):
+    stimulationVTAModel = slicer.modules.models.logic().AddModel(self.sphereSource.GetOutput())
+    stimulationVTAModel.CreateDefaultSequenceDisplayNodes()
+    stimulationVTAModel.CreateDefaultDisplayNodes()
+    stimulationVTAModel.GetDisplayNode().SetColor(0.8,0.1,0.1)
+    stimulationVTAModel.GetDisplayNode().SetOpacity(0.8)
+    stimulationVTAModel.GetDisplayNode().SetVisibility2D(1)
+    return stimulationVTAModel
+
+  def setFibersVisibility(self, state):
+    if slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLFiberBundleNode'):
+      fiberBundleNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLFiberBundleNode')
+      fiberBundleNode.SetAndObserveAnnotationNodeID(self.ROINode.GetID())
+      fiberBundleNode.SetSelectWithAnnotation(True)
+      fiberBundleNode.GetDisplayNode().SetVisibility(state)
+      fiberBundleNode.GetExtractFromROI().SetImplicitFunction(self.sphereFunction)
+
+  def cleanup(self):
+    self.setFibersVisibility(False)
+    slicer.mrmlScene.RemoveNode(self.ROINode)
+    slicer.mrmlScene.RemoveNode(self.VTAModel)
+    slicer.mrmlScene.RemoveNode(self.markupsNode)
