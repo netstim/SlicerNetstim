@@ -46,10 +46,10 @@ def registerSampleData():
 
   SampleData.SampleDataLogic.registerCustomSampleDataSource(
     category='LeadOR',
-    sampleName='Scene with planning',
+    sampleName='STN Planning',
     thumbnailFileName=os.path.join(iconsPath, 'LeadOR1.png'),
-    uris="https://github.com/netstim/SlicerNetstim/releases/download/SampleData/LeadOR1.mrb",
-    fileNames='LeadOR1.mrb',
+    uris="https://github.com/netstim/SlicerNetstim/releases/download/SampleData/Lead-OR_STN.mrb",
+    fileNames='Lead-OR_STN.mrb',
     loadFiles=True,
     loadFileType='SceneFile'
   )
