@@ -20,11 +20,11 @@ The import atlas module implements a routine to import [Lead-DBS atlases](https:
 
 The Lead-OR module provides an interface for setting micro electrodes configuration in space. It takes trajectories created from the AlphaOmega module and the output transform from the StereotacticPlan to create a live update of the scene.
 
-### StereotacticPlan
+- StereotacticPlan
 
 This module takes as input stereotactic frame coordinates (currently using Leksell) and creates a transform representing the trajectory in Slicer. An PDF import routine is implemented from Brianlab planning files.
 
-### WarpDrive
+- WarpDrive
 
 WarpDrive allows for manual interaction with the deformation fields that result from non linear registration. The idea is to be able to fix for miss-alignments between source and target images (and models). See the [WarpDrive page](./WarpDrive/README.md) for more information.
 
