@@ -86,9 +86,11 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.layout.addWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
 
-    if not (hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI')):
-      self.ui.stimulationCollapsibleButton.collapsed = True
+    if hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI'):
+      self.ui.stimulationCollapsibleButton.enabled = True
+    else:
       self.ui.stimulationCollapsibleButton.enabled = False
+      self.ui.stimulationCollapsibleButton.collapsed = True
       self.ui.stimulationCollapsibleButton.setToolTip('Updated SlicerDMRI Extension needed for stimulation module')
       
     # AO Channels actions to ToolButton
@@ -259,7 +261,7 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     self.ui.layoutToggleFrame.enabled            = transformsAvailable
     self.ui.microElectrodeLayoutFrame.enabled    = transformsAvailable
-    self.ui.stimulationCollapsibleButton.enabled = transformsAvailable
+    self.ui.stimulationCollapsibleButton.enabled = transformsAvailable and hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI')
 
     # All the GUI updates are done
     self._updatingGUIFromParameterNode = False
