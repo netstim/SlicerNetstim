@@ -1,3 +1,5 @@
+*This project is in active development and does not have any regulatory approval*
+
 # SlicerNetstim
 
 This repository contains a collection of modules for 3D Slicer on the topic of deep brain stimulation and other applications. See the modules section below for a general overview and the [quick start guide](./Documentation/QuickStartGuide/README.md) to install and load sample data in Slicer.
