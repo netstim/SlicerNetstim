@@ -67,30 +67,6 @@ class treeViewFilter(object):
     if name != '':
       node.SetName(name)
 
-
-class treeViewSceneFilter(treeViewFilter):
-
-  def __init__(self):
-    super().__init__()
-    self.name = 'Scene'
-    self.toolTip = ''
-    self.addText = ''
-
-  def deleteFunction(self, node):
-    pass
-
-
-class treeViewSegmentationsFilter(treeViewFilter):
-
-  def __init__(self):
-    super().__init__()
-    self.name = 'Segments'
-    self.toolTip = ''
-    self.addText = ''
-    self.filterDictionary['attributeNameFilter'] = ('Segment')
-
-
-
 class treeViewCorrectionsFiducialsFilter(treeViewFilter):
 
   def __init__(self):
@@ -217,8 +193,7 @@ class WarpDriveTreeView(qt.QWidget):
     self.renameButton.setToolTip('Rename')
 
     # set up filters
-    #filters = [treeViewSavedWarpFilter(), treeViewAtlasFilter(), treeViewDrawingsFilter(), treeViewSceneFilter()]
-    filters = [treeViewCorrectionsFiducialsFilter(), treeViewAtlasFilter(), treeViewSegmentationsFilter()]
+    filters = [treeViewCorrectionsFiducialsFilter(), treeViewAtlasFilter()]
     self.radioButtons = []
 
     for filt,pos in zip(filters,[[0,0],[0,2],[0,4]]):
