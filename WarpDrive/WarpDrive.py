@@ -193,7 +193,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     """
     Called each time the user opens a different module.
     """
-    # Do not react to parameter node changes (GUI wlil be updated when the user enters into the module)
+    # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
     self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
     self.cleanTools()
 
@@ -250,7 +250,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if inputParameterNode:
       self.logic.setDefaultParameters(inputParameterNode)
 
-    # Unobserve previusly selected parameter node and add an observer to the newly selected.
+    # Unobserve previously selected parameter node and add an observer to the newly selected.
     # Changes of parameter node are observed so that whenever parameters are changed by a script or any other module
     # those are reflected immediately in the GUI.
     if self._parameterNode is not None:
@@ -346,7 +346,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       wasBlocked = self.ui.outputSelector.blockSignals(True)
       self.ui.outputSelector.currentNodeID = None
       self.ui.outputSelector.blockSignals(wasBlocked)
-    # obvserve
+    # observe
     if self.ui.inputSelector.currentNodeID:
       self.ui.inputSelector.currentNode().SetAndObserveTransformNodeID(self.ui.outputSelector.currentNodeID)
 
