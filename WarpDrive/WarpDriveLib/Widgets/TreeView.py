@@ -160,19 +160,22 @@ class treeViewAtlasFilter(treeViewFilter):
     self.filterDictionary['attributeNameFilter'] = ('atlas')
 
   def addFunction(self):
-    if self.parameterNode.GetParameter("MNIAtlasPath") not in [".", ""]:
-      directory = self.parameterNode.GetParameter("MNIAtlasPath") 
-    else:
-      with open(os.path.join(os.path.split(ImportAtlas.__file__)[0],'Resources','previousDirectory.txt'), 'r') as f: 
-        directory = f.readlines()[0]
-        if directory == ".":
-          return
-    # load
-    items = ImportAtlas.ImportAtlasLogic().getValidAtlases(directory)
+    leadDBSPath = slicer.util.settingsValue("NetstimPreferences/leadDBSPath", "", converter=str)
+    if leadDBSPath is "":
+      qt.QMessageBox().warning(qt.QWidget(), "", "Add Lead-DBS path to Slicer preferences")
+      return
+    validAtlasesNames = ImportAtlas.ImportAtlasLogic().getValidAtlases()
+    if not validAtlasesNames:
+      return
     result = BoolResult()
-    atlasName = qt.QInputDialog.getItem(qt.QWidget(),'Select Atlas','',items,0,0,result)
+    atlasName = qt.QInputDialog.getItem(qt.QWidget(),'Select Atlas','',validAtlasesNames,0,0,result) 
     if result:
-      ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(directory, atlasName, 'atlas_index.mat'))    
+      qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
+      qt.QApplication.processEvents()
+      try:
+        ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(leadDBSPath, 'templates', 'space', 'MNI152NLin2009bAsym', 'atlases', atlasName, 'atlas_index.mat'))    
+      finally:
+        qt.QApplication.restoreOverrideCursor() 
 
 
 class WarpDriveTreeView(qt.QWidget):

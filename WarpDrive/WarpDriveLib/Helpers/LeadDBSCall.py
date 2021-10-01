@@ -30,7 +30,9 @@ def updateParameterNodeFromArgs(parameterNode):
     pathsSeparator = uuid.uuid4().hex
     subjectPaths = pathsSeparator.join(sys.argv[2:])
     subjectPath = subjectPaths.split(pathsSeparator)[0]
-    MNIPath = os.path.join(sys.argv[1],'templates','space','MNI152NLin2009bAsym')
+    leadDBSPath = sys.argv[1]
+    slicer.app.settings().setValue("NetstimPreferences/leadDBSPath", leadDBSPath)
+    MNIPath = os.path.join(leadDBSPath,'templates','space','MNI152NLin2009bAsym')
     MNIAtlasPath = os.path.join(MNIPath,'atlases')
     if sys.platform == "darwin":
       ext = "maci64"
@@ -38,7 +40,7 @@ def updateParameterNodeFromArgs(parameterNode):
       ext = 'exe'
     else:
       ext = 'glnxa64'
-    antsApplyTransformsPath = os.path.join(sys.argv[1],'ext_libs','ANTs','antsApplyTransforms.' + ext)
+    antsApplyTransformsPath = os.path.join(leadDBSPath,'ext_libs','ANTs','antsApplyTransforms.' + ext)
     # set parameter node
     parameterNode.SetParameter("separator", pathsSeparator)
     parameterNode.SetParameter("subjectPaths", subjectPaths)
