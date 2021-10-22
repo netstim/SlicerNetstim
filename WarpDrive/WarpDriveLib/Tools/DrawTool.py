@@ -146,6 +146,7 @@ class DrawToolEffect(AbstractDrawEffect):
 
   def curveToFiducial(self, curve):
     fiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    fiducial.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
     fiducial.GetDisplayNode().SetVisibility(0)
     fiducial.GetDisplayNode().SetTextScale(0)
     points = vtk.vtkPoints()

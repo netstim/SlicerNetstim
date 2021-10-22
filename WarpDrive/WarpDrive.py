@@ -378,9 +378,11 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     sourceFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
     sourceFiducial.SetControlPointPositionsWorld(sourcePoints)
     sourceFiducial.GetDisplayNode().SetTextScale(0)
+    sourceFiducial.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
     targetFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
     targetFiducial.SetControlPointPositionsWorld(targetPoints)
     targetFiducial.GetDisplayNode().SetVisibility(0)
+    targetFiducial.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
     # reference
     size,origin,spacing = GridNodeHelper.getGridDefinition(self._parameterNode.GetNodeReference("InputNode"))
     userSpacing = [float(self._parameterNode.GetParameter("Spacing"))] * 3
