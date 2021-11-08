@@ -20,7 +20,7 @@ class AbstractDrawEffect(AbstractCircleEffect):
     self.drawnCurveNode.GetDisplayNode().SetCurveLineSizeModeFromString('UseLineDiameter')
     self.drawnCurveNode.GetDisplayNode().SetTextScale(0)
     self.drawnCurveNode.GetDisplayNode().SetGlyphScale(0)
-    self.drawnCurveNode.GetDisplayNode().SetLineDiameter(0.5)
+    self.drawnCurveNode.GetDisplayNode().SetLineDiameter(2)
 
     # interaction state variables
     self.activeSlice = None
