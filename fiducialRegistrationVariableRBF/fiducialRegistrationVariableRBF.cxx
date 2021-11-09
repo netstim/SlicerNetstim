@@ -45,42 +45,37 @@ namespace
     std::vector< itk::Point<double, 3> > * fixed_landmarks,
     float * adapt_radius)
   {
-    int lidx;
+    unsigned int i, lidx;
     itk::Point<double, 3> fxyz;
     float rbf;
     unsigned int num_landmarks = fixed_landmarks->size();
 
     std::vector<double> physicalPoint;
 
-    float * vectorFieldBuffer = vf->GetBufferAsFloat();
-    unsigned int vectorFieldIndex;
-
     std::vector<unsigned int> size = vf->GetSize();
+    float * vectorFieldBuffer = vf->GetBufferAsFloat();
+    unsigned int vectorFieldLinearIndex;
+    std::vector<itk::int64_t> ijk {0,0,0};
 
-    for(unsigned int i=0; i<size[0]; i++){
-    for(unsigned int j=0; j<size[1]; j++){
-    for(unsigned int k=0; k<size[2]; k++){
+    for(ijk[0]=0; ijk[0]<size[0]; ijk[0]=ijk[0]+1){
+    for(ijk[1]=0; ijk[1]<size[1]; ijk[1]=ijk[1]+1){
+    for(ijk[2]=0; ijk[2]<size[2]; ijk[2]=ijk[2]+1){
 
-      vectorFieldIndex = i + (size[0] * (j + size[1] * k));
+      vectorFieldLinearIndex = ijk[0] + (size[0] * (ijk[1] + size[1] * ijk[2]));
 
-      const std::vector<itk::int64_t>& v3 {i,j,k};
-      physicalPoint = vf->TransformIndexToPhysicalPoint(v3);
+      physicalPoint = vf->TransformIndexToPhysicalPoint(ijk);
 
-      fxyz[0]=-physicalPoint[0];
-      fxyz[1]=-physicalPoint[1];
-      fxyz[2]=physicalPoint[2];
+      fxyz[0] = physicalPoint[0];
+      fxyz[1] = physicalPoint[1];
+      fxyz[2] = physicalPoint[2];
 
       for (lidx=0; lidx < num_landmarks; lidx++) {
         
-        rbf = rbf_value (
-          fixed_landmarks->at(lidx), 
-          fxyz,
-          adapt_radius[lidx]);
+        rbf = rbf_value(fixed_landmarks->at(lidx), fxyz, adapt_radius[lidx]);
 
-        vectorFieldBuffer[3*vectorFieldIndex+0] -= coeff[3*lidx+0] * rbf;
-        vectorFieldBuffer[3*vectorFieldIndex+1] -= coeff[3*lidx+1] * rbf;
-        vectorFieldBuffer[3*vectorFieldIndex+2] += coeff[3*lidx+2] * rbf;
-
+        for (i=0; i<3; i++){
+          vectorFieldBuffer[3*vectorFieldLinearIndex+i] += coeff[3*lidx+i] * rbf;
+        }
       }
 
     }

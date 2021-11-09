@@ -17,7 +17,7 @@
       <default>None</default>
       <description>Reference volume</description>
     </image>
-    <point coordinateSystem="ras" multiple="true">
+    <point coordinateSystem="lps" multiple="true">
       <name>fixedFiducials</name>
       <label>Fixed Fiducials</label>
       <channel>input</channel>
@@ -25,7 +25,7 @@
       <default>0,0,0</default>
       <longflag>fixedFiducials</longflag>
     </point>
-    <point coordinateSystem="ras" multiple="true">
+    <point coordinateSystem="lps" multiple="true">
       <name>movingFiducials</name>
       <label>Moving fiducials</label>
       <channel>input</channel>
