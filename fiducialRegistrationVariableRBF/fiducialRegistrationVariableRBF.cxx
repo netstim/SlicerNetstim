@@ -39,21 +39,6 @@ namespace
     return val;
   }
 
-  static inline unsigned long 
-  volume_index (std::vector<unsigned int> dims, const unsigned long ijk[3])
-  {
-      return ijk[0] + (dims[0] * (ijk[1] + dims[1] * ijk[2]));
-  }
-
-  void compute_direction_matrices (float *step, std::vector<double> dc, std::vector<double> spacing)
-  {
-    for (int i = 0; i < 3; i++) {
-    for (int j = 0; j < 3; j++) {
-      step[3*i+j] = dc[3*i+j] * spacing[j];
-    }
-    }
-  }
-
   void rbf_gauss_update_vf( 
     sitk::Image *vf, 
     float *coeff, 
@@ -65,19 +50,20 @@ namespace
     float rbf;
     unsigned int num_landmarks = fixed_landmarks->size();
 
-    float step[9];
-    compute_direction_matrices (step, vf->GetDirection(), vf->GetSpacing());
-
     std::vector<double> physicalPoint;
-    std::vector<float> pixelValue;
 
-    for(unsigned int i=0; i<vf->GetSize()[0]; i++){
-    for(unsigned int j=0; j<vf->GetSize()[1]; j++){
-    for(unsigned int k=0; k<vf->GetSize()[2]; k++){
+    float * vectorFieldBuffer = vf->GetBufferAsFloat();
+    unsigned int vectorFieldIndex;
 
-      const std::vector<itk::uint32_t>& v2 {i,j,k};
+    std::vector<unsigned int> size = vf->GetSize();
+
+    for(unsigned int i=0; i<size[0]; i++){
+    for(unsigned int j=0; j<size[1]; j++){
+    for(unsigned int k=0; k<size[2]; k++){
+
+      vectorFieldIndex = i + (size[0] * (j + size[1] * k));
+
       const std::vector<itk::int64_t>& v3 {i,j,k};
-      pixelValue = vf->GetPixelAsVectorFloat32(v2);
       physicalPoint = vf->TransformIndexToPhysicalPoint(v3);
 
       fxyz[0]=-physicalPoint[0];
@@ -91,11 +77,11 @@ namespace
           fxyz,
           adapt_radius[lidx]);
 
-        pixelValue[0] -= coeff[3*lidx+0] * rbf;
-        pixelValue[1] -= coeff[3*lidx+1] * rbf;
-        pixelValue[2] += coeff[3*lidx+2] * rbf;
+        vectorFieldBuffer[3*vectorFieldIndex+0] -= coeff[3*lidx+0] * rbf;
+        vectorFieldBuffer[3*vectorFieldIndex+1] -= coeff[3*lidx+1] * rbf;
+        vectorFieldBuffer[3*vectorFieldIndex+2] += coeff[3*lidx+2] * rbf;
+
       }
-      vf->SetPixelAsVectorFloat32(v2, pixelValue);
 
     }
     }
