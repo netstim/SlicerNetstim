@@ -26,16 +26,10 @@ namespace
     return p;
   }
 
-  static float rbf_value (itk::Point<double, 3> rbf_center, itk::Point<double, 3> loc, float radius)
+  static float rbf_value (itk::Point<double, 3> * rbf_center, itk::Point<double, 3> * loc, float radius)
   {
-    float val, r, dx, dy, dz;
-
-    dx = rbf_center[0]-loc[0];
-    dy = rbf_center[1]-loc[1];
-    dz = rbf_center[2]-loc[2];
-    r = sqrt (dx*dx + dy*dy + dz*dz);
-    r = r / radius;
-    val = exp( -r*r );   
+    float r = rbf_center->EuclideanDistanceTo(*loc) / radius;
+    float val = exp( -r*r );   
     return val;
   }
 
@@ -46,35 +40,34 @@ namespace
     float * adapt_radius)
   {
     unsigned int i, lidx;
-    itk::Point<double, 3> fxyz;
     float rbf;
     unsigned int num_landmarks = fixed_landmarks->size();
 
+    itk::Point<double, 3> physicalPointITK;
     std::vector<double> physicalPoint;
 
     std::vector<unsigned int> size = vf->GetSize();
-    float * vectorFieldBuffer = vf->GetBufferAsFloat();
-    unsigned int vectorFieldLinearIndex;
+    float * buffer = vf->GetBufferAsFloat();
+    unsigned int linearIndex;
     std::vector<itk::int64_t> ijk {0,0,0};
 
     for(ijk[0]=0; ijk[0]<size[0]; ijk[0]=ijk[0]+1){
     for(ijk[1]=0; ijk[1]<size[1]; ijk[1]=ijk[1]+1){
     for(ijk[2]=0; ijk[2]<size[2]; ijk[2]=ijk[2]+1){
 
-      vectorFieldLinearIndex = ijk[0] + (size[0] * (ijk[1] + size[1] * ijk[2]));
-
       physicalPoint = vf->TransformIndexToPhysicalPoint(ijk);
+      for (i=0; i<3; i++){
+        physicalPointITK[i] = physicalPoint[i];
+      }
 
-      fxyz[0] = physicalPoint[0];
-      fxyz[1] = physicalPoint[1];
-      fxyz[2] = physicalPoint[2];
+      linearIndex = ijk[0] + (size[0] * (ijk[1] + size[1] * ijk[2]));
 
       for (lidx=0; lidx < num_landmarks; lidx++) {
         
-        rbf = rbf_value(fixed_landmarks->at(lidx), fxyz, adapt_radius[lidx]);
+        rbf = rbf_value(&fixed_landmarks->at(lidx), &physicalPointITK, adapt_radius[lidx]);
 
         for (i=0; i<3; i++){
-          vectorFieldBuffer[3*vectorFieldLinearIndex+i] += coeff[3*lidx+i] * rbf;
+          buffer[3*linearIndex+i] += coeff[3*lidx+i] * rbf;
         }
       }
 
@@ -109,14 +102,10 @@ namespace
     // right-hand side
     for (i=0; i<num_landmarks; i++) {
 	  for (j=0; j<num_landmarks; j++) {
-	    rbfv1 = rbf_value (fixed_landmarks->at(i), 
-        fixed_landmarks->at(j), 
-        adapt_radius[j]);
+	    rbfv1 = rbf_value (&fixed_landmarks->at(i), &fixed_landmarks->at(j), adapt_radius[j]);
 		
 	    for (d=0;d<3;d++) {
-		    b (3*i +d, 0) -= rbfv1 
-		      * (fixed_landmarks->at(j)[d] 
-			    - moving_landmarks->at(j)[d]);
+		    b (3*i +d, 0) -= rbfv1 * (fixed_landmarks->at(j)[d] - moving_landmarks->at(j)[d]);
 	    }
 	  }
     }
@@ -127,17 +116,12 @@ namespace
 	    tmp = 0;
 	    for (k = 0; k < num_landmarks; k++) {
 
-		  rbfv1 = rbf_value (fixed_landmarks->at(k), 
-		    fixed_landmarks->at(i), 
-		    adapt_radius[k]);
-		  rbfv2 = rbf_value (fixed_landmarks->at(k), 
-		    fixed_landmarks->at(j), 
-		    adapt_radius[k]);
+		  rbfv1 = rbf_value (&fixed_landmarks->at(k), &fixed_landmarks->at(i), adapt_radius[k]);
+		  rbfv2 = rbf_value (&fixed_landmarks->at(k), &fixed_landmarks->at(j), adapt_radius[k]);
 
 		  tmp += rbfv1*rbfv2;
 	    }
-	    for (d=0;d<3;d++)
-	    {
+	    for (d=0;d<3;d++){
 		    A(3*i+d, 3*j+d) = tmp;
 	    }
 	  }
@@ -155,18 +139,10 @@ namespace
         }
         else
         {
-          float dx = fixed_landmarks->at(i)[0]
-            - fixed_landmarks->at(j)[0];
-              float dy = fixed_landmarks->at(i)[1]
-            - fixed_landmarks->at(j)[1];
-              float dz = fixed_landmarks->at(i)[2]
-            - fixed_landmarks->at(j)[2];
-
           // r2 = sq distance between landmarks i,j in mm
-          r2 = dx * dx + dy * dy + dz * dz;
-          r2 = r2 / (adapt_radius[i] * adapt_radius[j]);
-          reg_term = rbf_prefactor * exp(-r2/2.) 
-            * (-10 + (r2-5.)*(r2-5.));
+          float d = fixed_landmarks->at(i).EuclideanDistanceTo(fixed_landmarks->at(j));
+          r2 = (d * d) / (adapt_radius[i] * adapt_radius[j]);
+          reg_term = rbf_prefactor * exp(-r2/2.) * (-10 + (r2-5.)*(r2-5.));
         }
         A (3*i+d,3*j+d) = tmp + reg_term * stiffness;
       } 
