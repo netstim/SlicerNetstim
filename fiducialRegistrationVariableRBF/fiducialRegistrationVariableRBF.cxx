@@ -2,7 +2,6 @@
 
 // ITK includes
 #include <itkImage.h>
-#include <itkImageFileWriter.h>
 
 #include "SimpleITK.h"
 
@@ -26,48 +25,47 @@ namespace
     return p;
   }
 
-  static float rbf_value (itk::Point<double, 3> * rbf_center, itk::Point<double, 3> * loc, float radius)
+  static float RBFValue (itk::Point<double, 3> * rbf_center, itk::Point<double, 3> * loc, float radius)
   {
     float r = rbf_center->EuclideanDistanceTo(*loc) / radius;
     float val = exp( -r*r );   
     return val;
   }
 
-  void rbf_gauss_update_vf( 
-    sitk::Image *vf, 
+  void RBFGaussUpdateVectorField( 
+    sitk::Image *vectorField, 
     float *coeff, 
-    std::vector< itk::Point<double, 3> > * fixed_landmarks,
-    float * adapt_radius)
+    std::vector< itk::Point<double, 3> > * fixedLandmarks,
+    float * adaptRadius)
   {
-    unsigned int i, lidx;
+    unsigned int i, landmarkIndex, imageLinearIndex;
     float rbf;
-    unsigned int num_landmarks = fixed_landmarks->size();
+    unsigned int numLandmarks = fixedLandmarks->size();
 
     itk::Point<double, 3> physicalPointITK;
     std::vector<double> physicalPoint;
 
-    std::vector<unsigned int> size = vf->GetSize();
-    float * buffer = vf->GetBufferAsFloat();
-    unsigned int linearIndex;
+    std::vector<unsigned int> size = vectorField->GetSize();
+    float * buffer = vectorField->GetBufferAsFloat();
     std::vector<itk::int64_t> ijk {0,0,0};
 
     for(ijk[0]=0; ijk[0]<size[0]; ijk[0]=ijk[0]+1){
     for(ijk[1]=0; ijk[1]<size[1]; ijk[1]=ijk[1]+1){
     for(ijk[2]=0; ijk[2]<size[2]; ijk[2]=ijk[2]+1){
 
-      physicalPoint = vf->TransformIndexToPhysicalPoint(ijk);
+      physicalPoint = vectorField->TransformIndexToPhysicalPoint(ijk);
       for (i=0; i<3; i++){
         physicalPointITK[i] = physicalPoint[i];
       }
 
-      linearIndex = ijk[0] + (size[0] * (ijk[1] + size[1] * ijk[2]));
+      imageLinearIndex = ijk[0] + (size[0] * (ijk[1] + size[1] * ijk[2]));
 
-      for (lidx=0; lidx < num_landmarks; lidx++) {
+      for (landmarkIndex=0; landmarkIndex < numLandmarks; landmarkIndex++) {
         
-        rbf = rbf_value(&fixed_landmarks->at(lidx), &physicalPointITK, adapt_radius[lidx]);
+        rbf = RBFValue(&fixedLandmarks->at(landmarkIndex), &physicalPointITK, adaptRadius[landmarkIndex]);
 
         for (i=0; i<3; i++){
-          buffer[3*linearIndex+i] += coeff[3*lidx+i] * rbf;
+          buffer[3*imageLinearIndex+i] += coeff[3*landmarkIndex+i] * rbf;
         }
       }
 
@@ -77,47 +75,54 @@ namespace
 
   }
 
-  static void bspline_rbf_find_coeffs(float *coeff, 
-    std::vector< itk::Point<double, 3> > * fixed_landmarks, 
-    std::vector< itk::Point<double, 3> > * moving_landmarks,
-    float * adapt_radius,
-    float rbf_radius,
+  float * BSplineRBFFindCoeffs(
+    std::vector< itk::Point<double, 3> > * fixedLandmarks, 
+    std::vector< itk::Point<double, 3> > * movingLandmarks,
+    float * adaptRadius,
     float stiffness)
   {
     float rbfv1, rbfv2;
     int i, j, k, d;
     float rbf_prefactor, reg_term, r2, tmp;
-    unsigned int num_landmarks = fixed_landmarks->size();
+    unsigned int numLandmarks = fixedLandmarks->size();
+
+    float * coeff = (float*) malloc (3 * numLandmarks * sizeof(float));
 
     typedef vnl_matrix <double> Vnl_matrix;
     typedef vnl_svd <double> SVDSolverType;
     Vnl_matrix A, b;
 
-    A.set_size (3 * num_landmarks, 3 * num_landmarks);
+    float RBFRadius = 0.0;
+    for (i=0; i<numLandmarks; i++){
+      RBFRadius += adaptRadius[i];
+    }
+    RBFRadius = RBFRadius / numLandmarks;
+
+    A.set_size (3 * numLandmarks, 3 * numLandmarks);
     A.fill(0.);
 
-    b.set_size (3 * num_landmarks, 1);
+    b.set_size (3 * numLandmarks, 1);
     b.fill (0.0);
 
     // right-hand side
-    for (i=0; i<num_landmarks; i++) {
-	  for (j=0; j<num_landmarks; j++) {
-	    rbfv1 = rbf_value (&fixed_landmarks->at(i), &fixed_landmarks->at(j), adapt_radius[j]);
+    for (i=0; i<numLandmarks; i++) {
+	  for (j=0; j<numLandmarks; j++) {
+	    rbfv1 = RBFValue (&fixedLandmarks->at(i), &fixedLandmarks->at(j), adaptRadius[j]);
 		
 	    for (d=0;d<3;d++) {
-		    b (3*i +d, 0) -= rbfv1 * (fixed_landmarks->at(j)[d] - moving_landmarks->at(j)[d]);
+		    b (3*i +d, 0) -= rbfv1 * (fixedLandmarks->at(j)[d] - movingLandmarks->at(j)[d]);
 	    }
 	  }
     }
 
     // matrix
-    for (i = 0; i < num_landmarks; i++) {
-	  for (j = 0; j < num_landmarks; j++) {
+    for (i = 0; i < numLandmarks; i++) {
+	  for (j = 0; j < numLandmarks; j++) {
 	    tmp = 0;
-	    for (k = 0; k < num_landmarks; k++) {
+	    for (k = 0; k < numLandmarks; k++) {
 
-		  rbfv1 = rbf_value (&fixed_landmarks->at(k), &fixed_landmarks->at(i), adapt_radius[k]);
-		  rbfv2 = rbf_value (&fixed_landmarks->at(k), &fixed_landmarks->at(j), adapt_radius[k]);
+		  rbfv1 = RBFValue (&fixedLandmarks->at(k), &fixedLandmarks->at(i), adaptRadius[k]);
+		  rbfv2 = RBFValue (&fixedLandmarks->at(k), &fixedLandmarks->at(j), adaptRadius[k]);
 
 		  tmp += rbfv1*rbfv2;
 	    }
@@ -128,10 +133,10 @@ namespace
     }
 
     //add regularization terms to the matrix
-    rbf_prefactor = sqrt(M_PI/2.)*sqrt(M_PI/2.)*sqrt(M_PI/2.)/rbf_radius;
+    rbf_prefactor = sqrt(M_PI/2.)*sqrt(M_PI/2.)*sqrt(M_PI/2.)/RBFRadius;
     for (d=0;d<3;d++) {
-	  for (i=0;i<num_landmarks;i++) {
-	    for (j=0;j<num_landmarks;j++) {
+	  for (i=0;i<numLandmarks;i++) {
+	    for (j=0;j<numLandmarks;j++) {
         tmp = A(3*i+d, 3*j+d);
         reg_term = 0.;			
         if (i==j) {
@@ -140,8 +145,8 @@ namespace
         else
         {
           // r2 = sq distance between landmarks i,j in mm
-          float d = fixed_landmarks->at(i).EuclideanDistanceTo(fixed_landmarks->at(j));
-          r2 = (d * d) / (adapt_radius[i] * adapt_radius[j]);
+          float d = fixedLandmarks->at(i).EuclideanDistanceTo(fixedLandmarks->at(j));
+          r2 = (d * d) / (adaptRadius[i] * adaptRadius[j]);
           reg_term = rbf_prefactor * exp(-r2/2.) * (-10 + (r2-5.)*(r2-5.));
         }
         A (3*i+d,3*j+d) = tmp + reg_term * stiffness;
@@ -152,9 +157,10 @@ namespace
     SVDSolverType svd (A, 1e-6);
     Vnl_matrix x = svd.solve (b);
 
-    for (i=0; i<3*num_landmarks; i++) {
+    for (i=0; i<3*numLandmarks; i++) {
 	    coeff[i] = x(i,0);
     }
+    return coeff;
   }
 
 
@@ -189,18 +195,13 @@ int main( int argc, char * argv[] )
   }
 
   float * adaptRadius = (float *)malloc(numFiducials*sizeof(float));
-  float RBFRadiusMean = 0.0;
   for (unsigned long i = 0; i<numFiducials; i++){
     if (numRBFRadius == 1){
       adaptRadius[i] = RBFRadius[0];
     }else{
       adaptRadius[i] = RBFRadius[i];
     }
-    RBFRadiusMean += adaptRadius[i];
   }
-
-  RBFRadiusMean = RBFRadiusMean / numFiducials;
-
 
   typedef std::vector< itk::Point<double, 3> > PointList;
 
@@ -219,22 +220,19 @@ int main( int argc, char * argv[] )
 
   // BSpline coeff
 
-  float * coeff = (float*) malloc (3 * fixedPoints.size() * sizeof(float));
-  bspline_rbf_find_coeffs (coeff, &fixedPoints, &movingPoints, adaptRadius, RBFRadiusMean, stiffness);
+  float * coeff = BSplineRBFFindCoeffs(&fixedPoints, &movingPoints, adaptRadius, stiffness);
 
   // Create vector field
   sitk::ImageFileReader reader;
   reader.SetFileName(referenceVolume);
   sitk::Image &&referenceImage = reader.Execute();
 
-  sitk::PixelIDValueEnum pixelType = sitk::sitkVectorFloat32;
-
-  sitk::Image output(referenceImage.GetSize(), pixelType);
+  sitk::Image output(referenceImage.GetSize(), sitk::sitkVectorFloat32);
   output.SetOrigin(referenceImage.GetOrigin());
   output.SetSpacing(referenceImage.GetSpacing());
   output.SetDirection(referenceImage.GetDirection());
 
-  rbf_gauss_update_vf (&output, coeff, &fixedPoints, adaptRadius);
+  RBFGaussUpdateVectorField(&output, coeff, &fixedPoints, adaptRadius);
 
   sitk::WriteImage(output, outputDisplacementField);
 
