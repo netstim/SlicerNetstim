@@ -1,3 +1,7 @@
+// The logic of this computation is taken from plastimatch and modified to use variable RBF Radius.
+// Instead of using plastimatch classes, here ITK and SimpleITK abstractions are used.
+// https://gitlab.com/plastimatch/plastimatch
+
 #include "fiducialRegistrationVariableRBFCLP.h"
 
 // ITK includes
