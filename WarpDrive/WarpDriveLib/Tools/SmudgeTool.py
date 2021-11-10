@@ -56,8 +56,7 @@ class SmudgeToolEffect(AbstractCircleEffect):
       sourceFiducial, targetFiducial = self.getSourceTargetFromPoints()
       # apply
       WarpDriveUtil.addCorrection(sourceFiducial, targetFiducial, 
-                              spread=int(round(float(self.parameterNode.GetParameter("Spread")))),
-                              referenceNode = self.parameterNode.GetNodeReference("InputNode"))
+                              spread=self.parameterNode.GetParameter("Spread"))
       self.parameterNode.SetParameter("Update","true")
       # reset
       self.interactionPoints = vtk.vtkPoints()

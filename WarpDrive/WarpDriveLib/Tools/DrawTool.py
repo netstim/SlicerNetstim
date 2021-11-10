@@ -69,8 +69,7 @@ class DrawToolEffect(AbstractDrawEffect):
       self.sourceFiducial.ApplyTransform(self.parameterNode.GetNodeReference("OutputGridTransform").GetTransformFromParent()) # undo current
 
       WarpDriveUtil.addCorrection(self.sourceFiducial, targetFiducial, 
-                              spread=int(round(float(self.parameterNode.GetParameter("Spread")))),
-                              referenceNode = self.parameterNode.GetNodeReference("InputNode"))   
+                              spread=self.parameterNode.GetParameter("Spread"))
 
       self.parameterNode.SetParameter("Update","true")
       self.sourceFiducial = None

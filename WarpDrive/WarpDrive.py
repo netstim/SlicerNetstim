@@ -24,7 +24,7 @@ class WarpDrive(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "WarpDrive" 
     self.parent.categories = ["Netstim"]
-    self.parent.dependencies = ["MarkupsToModel", "plastimatch_slicer_landwarp"]
+    self.parent.dependencies = ["fiducialRegistrationVariableRBF"]
     self.parent.contributors = ["Simon Oxenford (Netstim Berlin)"]
     self.parent.helpText = """
 This module provides tools to manually fix misalignments after non linear registration
@@ -80,8 +80,8 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     dataControlLayout = qt.QVBoxLayout(self.ui.dataControlFrame)
     dataControlLayout.addWidget(dataControlTree)
 
-    # add plastimatch progress bar
-    self.ui.landwarpWidget = slicer.modules.plastimatch_slicer_landwarp.createNewWidgetRepresentation()
+    # add cli progress bar
+    self.ui.landwarpWidget = slicer.modules.fiducialregistrationvariablerbf.createNewWidgetRepresentation()
     self.ui.calculateFrame.layout().addWidget(self.ui.landwarpWidget.children()[3], 2, 0, 1, 2) # progress bar
 
     # Set scene in MRML widgets. Make sure that in Qt designer
@@ -97,7 +97,6 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # Connections
     self.ui.calculateButton.connect('clicked(bool)', self.onCalculateButton)
     self.ui.spacingSameAsInputCheckBox.toggled.connect(lambda b: self.ui.spacingSpinBox.setEnabled(not b))
-    self.ui.autoRBFRadiusCheckBox.toggled.connect(lambda b: self.ui.RBFRadiusSpinBox.setEnabled(not b))
 
     # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
     # (in the selected parameter node).
@@ -107,8 +106,6 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.spreadSlider.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
     self.ui.spacingSameAsInputCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
     self.ui.spacingSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
-    self.ui.autoRBFRadiusCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
-    self.ui.RBFRadiusSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
     self.ui.stiffnessSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
     self.ui.drawModeMenu.triggered.connect(self.updateParameterNodeFromGUI)
     
@@ -116,13 +113,6 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.NodeAddedEvent, dataControlTree.updateTree)
-
-    # check dependencies
-    if slicer.app.mainApplicationName != 'SlicerCustom':
-      if LeadDBSCall.checkExtensionInstall(extensionName = 'SlicerRT'):
-        return
-      if LeadDBSCall.checkExtensionInstall(extensionName = 'MarkupsToModel'):
-        return
 
     # Initial GUI update
     self.updateGUIFromParameterNode()
@@ -287,7 +277,6 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.updateParameterNodeFromGUI()
 
     self.ui.spacingSpinBox.value = float(self._parameterNode.GetParameter("Spacing"))
-    self.ui.RBFRadiusSpinBox.value = float(self._parameterNode.GetParameter("RBFRadius"))
     self.ui.stiffnessSpinBox.value = float(self._parameterNode.GetParameter("Stiffness"))
 
     self.ui.outputSelector.enabled = self._parameterNode.GetNodeReference("InputNode")
@@ -334,13 +323,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       size,origin,spacing = GridNodeHelper.getGridDefinition(currentInputNode)
     else:
       spacing = [self.ui.spacingSpinBox.value]
-    self._parameterNode.SetParameter("Spacing", str(spacing[0]))
-    # RBF radius
-    if self.ui.autoRBFRadiusCheckBox.checked:
-      radius = WarpDriveUtil.getMaxSpread()
-    else:
-      radius = self.ui.RBFRadiusSpinBox.value
-    self._parameterNode.SetParameter("RBFRadius", str(radius))    
+    self._parameterNode.SetParameter("Spacing", str(spacing[0])) 
 
     self._parameterNode.EndModify(wasModified)
 
@@ -368,9 +351,9 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # update (sets the RBF value)
     self.updateParameterNodeFromGUI()
     # get source and target from points
-    sourcePoints = WarpDriveUtil.getPointsFromAttribute('source')
-    targetPoints = WarpDriveUtil.getPointsFromAttribute('target')
-    fixedPoints = WarpDriveUtil.getPointsFromAttribute('fixed')
+    sourcePoints, radius1 = WarpDriveUtil.getPointsFromAttribute('source')
+    targetPoints, radius1 = WarpDriveUtil.getPointsFromAttribute('target')
+    fixedPoints, radius2 = WarpDriveUtil.getPointsFromAttribute('fixed')
     # add fixed to source and target
     sourcePoints.InsertPoints(sourcePoints.GetNumberOfPoints(), fixedPoints.GetNumberOfPoints(), 0, fixedPoints)
     targetPoints.InsertPoints(targetPoints.GetNumberOfPoints(), fixedPoints.GetNumberOfPoints(), 0, fixedPoints)
@@ -391,10 +374,8 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # output
     outputNode = self._parameterNode.GetNodeReference("OutputGridTransform")
     # params
-    RBFRadius = float(self._parameterNode.GetParameter("Spread"))
+    RBFRadius = ",".join(radius1 + radius2)
     stiffness = float(self._parameterNode.GetParameter("Stiffness"))
-    # mask
-    maskVolume = WarpDriveUtil.getMaskVolume(auxVolumeNode)
 
     # save current state if leadDBS call in case of error
     if self._parameterNode.GetParameter("subjectPath") != '':
@@ -408,27 +389,25 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # run
     self._parameterNode.SetParameter("Running", "true")
-    cliNode = self.logic.run(auxVolumeNode, outputNode, sourceFiducial, targetFiducial, RBFRadius, stiffness, maskVolume)
+    cliNode = self.logic.run(auxVolumeNode, outputNode, sourceFiducial, targetFiducial, RBFRadius, stiffness)
 
     if cliNode is not None:
       # set up for UI
       self.ui.landwarpWidget.setCurrentCommandLineModuleNode(cliNode)
       # add observer
       cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, \
-        lambda c,e,o=outputNode,m=maskVolume,v=visualizationNode,s=sourceFiducial,t=targetFiducial,a=auxVolumeNode: self.onStatusModifiedEvent(c,o,m,v,s,t,a))
+        lambda c,e,o=outputNode,v=visualizationNode,s=sourceFiducial,t=targetFiducial,a=auxVolumeNode: self.onStatusModifiedEvent(c,o,v,s,t,a))
     else:
-      self.onStatusModifiedEvent(None,outputNode,maskVolume,visualizationNode,sourceFiducial,targetFiducial,auxVolumeNode)
+      self.onStatusModifiedEvent(None,outputNode,visualizationNode,sourceFiducial,targetFiducial,auxVolumeNode)
 
     # cursor
     qt.QApplication.setOverrideCursor(qt.Qt.ArrowCursor)
     
   
-  def onStatusModifiedEvent(self, caller, outputNode, maskVolume, visualizationNode, sourceFiducial, targetFiducial, auxVolumeNode):
+  def onStatusModifiedEvent(self, caller, outputNode, visualizationNode, sourceFiducial, targetFiducial, auxVolumeNode):
     
     if isinstance(caller, slicer.vtkMRMLCommandLineModuleNode):
       if caller.GetStatusString() == 'Completed':
-        # apply mask
-        self.logic.applyMask(outputNode, maskVolume)
         # delete cli Node
         qt.QTimer.singleShot(1000, lambda: slicer.mrmlScene.RemoveNode(caller))
       else:
@@ -439,7 +418,6 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._parameterNode.GetNodeReference("InputNode").Modified()
 
     # remove aux
-    slicer.mrmlScene.RemoveNode(maskVolume) 
     slicer.mrmlScene.RemoveNode(visualizationNode)
     slicer.mrmlScene.RemoveNode(sourceFiducial)
     slicer.mrmlScene.RemoveNode(targetFiducial)
@@ -501,7 +479,7 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
     if not parameterNode.GetParameter("Running"):
       parameterNode.SetParameter("Running", "false")
 
-  def run(self, referenceVolume, outputNode, sourceFiducial, targetFiducial, RBFRadius, stiffness, maskVolume):
+  def run(self, referenceVolume, outputNode, sourceFiducial, targetFiducial, RBFRadius, stiffness):
 
     # run landmark registration if points available
     if sourceFiducial.GetNumberOfControlPoints():
@@ -511,42 +489,19 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
       return
     return cliNode
 
-  def applyMask(self, node, maskVolumeNode):
-    # get arrays
-    transformArray = slicer.util.array(node.GetID())
-    maskArray = slicer.util.array(maskVolumeNode.GetID())
-    # mask
-    transformArray[:] = np.stack([transformArray[:,:,:,i] * maskArray for i in range(3)], 3).squeeze()
-    # modified
-    node.Modified()
-
   def computeWarp(self, referenceVolume, outputNode, sourceFiducial, targetFiducial, RBFRadius, stiffness):
-    """
-    Run the processing algorithm.
-    Can be used without GUI widget.
-    :param referenceVolume: Used to set grid definition
-    :param outputNode: output warp. will be observed by input node
-    :param sourceFiducial: source fiducials
-    :param targetFiducial: target fiducials
-    :param spread: used for RBF radius
-    """
 
-    if not referenceVolume or not outputNode:
-      raise ValueError("Input or output is invalid")
-
-    # Compute the warp with plastimatch landwarp
+    # Compute the warp with fiducialRegistrationVariableRBF
     cliParams = {
-      "plmslc_landwarp_fixed_volume" : referenceVolume.GetID(),
-      "plmslc_landwarp_moving_volume" : referenceVolume.GetID(),
-      "plmslc_landwarp_fixed_fiducials" : targetFiducial.GetID(),
-      "plmslc_landwarp_moving_fiducials" : sourceFiducial.GetID(),
-      "plmslc_landwarp_output_vf" : outputNode.GetID(),
-      "plmslc_landwarp_rbf_type" : "gauss",
-      "plmslc_landwarp_rbf_radius" : RBFRadius,
-      "plmslc_landwarp_stiffness" : stiffness,
+      "referenceVolume" : referenceVolume.GetID(),
+      "fixedFiducials" : targetFiducial.GetID(),
+      "movingFiducials" : sourceFiducial.GetID(),
+      "outputDisplacementField" : outputNode.GetID(),
+      "RBFRadius" : RBFRadius,
+      "stiffness" : stiffness,
       } 
 
-    cliNode = slicer.cli.run(slicer.modules.plastimatch_slicer_landwarp, None, cliParams, wait_for_completion=False, update_display=False)
+    cliNode = slicer.cli.run(slicer.modules.fiducialregistrationvariablerbf, None, cliParams, wait_for_completion=False, update_display=False)
 
     return cliNode
 
