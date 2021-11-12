@@ -22,6 +22,7 @@ set(MODULE_PYTHON_SCRIPTS
   WarpDriveLib/Widgets/Toolbar.py
   WarpDriveLib/Widgets/ToolWidget.py
   WarpDriveLib/Widgets/TreeView.py
+  WarpDriveLib/Widgets/CorrectionsTable.py
   WarpDriveLib/Widgets/__init__.py
   WarpDriveLib/__init__.py
   )

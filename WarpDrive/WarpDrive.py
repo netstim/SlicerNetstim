@@ -9,7 +9,7 @@ import numpy as np
 
 from WarpDriveLib.Tools import NoneTool, SmudgeTool, DrawTool, PointToPointTool
 from WarpDriveLib.Helpers import GridNodeHelper, WarpDriveUtil, LeadDBSCall
-from WarpDriveLib.Widgets import TreeView, Toolbar
+from WarpDriveLib.Widgets import CorrectionsTable, TreeView, Toolbar
 
 #
 # WarpDrive
@@ -76,9 +76,9 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.drawModeMenu = toolWidgets[2].effectButton.menu()
 
     # Add Tree View
-    dataControlTree = TreeView.WarpDriveTreeView()
+    correctionsManager = CorrectionsTable.WarpDriveCorrectionsManager()
     dataControlLayout = qt.QVBoxLayout(self.ui.dataControlFrame)
-    dataControlLayout.addWidget(dataControlTree)
+    dataControlLayout.addWidget(correctionsManager.widget)
 
     # add cli progress bar
     self.ui.landwarpWidget = slicer.modules.fiducialregistrationvariablerbf.createNewWidgetRepresentation()
@@ -101,6 +101,8 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
     # (in the selected parameter node).
     self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.sourceFiducialsComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.targetFiducialsComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     self.ui.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onOutputNodeChanged)
     self.ui.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     self.ui.spreadSlider.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
@@ -112,7 +114,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # MRML Scene
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
-    self.addObserver(slicer.mrmlScene, slicer.mrmlScene.NodeAddedEvent, dataControlTree.updateTree)
+    # self.addObserver(slicer.mrmlScene, slicer.mrmlScene.NodeAddedEvent, dataControlTree.updateTree)
 
     # Initial GUI update
     self.updateGUIFromParameterNode()
@@ -269,6 +271,8 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # GUI update, which triggers MRML node update, which triggers GUI update, ...)
 
     self.ui.inputSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputNode"))
+    self.ui.sourceFiducialsComboBox.setCurrentNode(self._parameterNode.GetNodeReference("SourceFiducial"))
+    self.ui.targetFiducialsComboBox.setCurrentNode(self._parameterNode.GetNodeReference("TargetFiducial"))
     self.ui.outputSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputGridTransform"))
 
     spread = float(self._parameterNode.GetParameter("Spread"))
@@ -314,6 +318,8 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
 
     self._parameterNode.SetNodeReferenceID("InputNode", self.ui.inputSelector.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("SourceFiducial", self.ui.sourceFiducialsComboBox.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("TargetFiducial", self.ui.targetFiducialsComboBox.currentNodeID)
     self._parameterNode.SetNodeReferenceID("OutputGridTransform", self.ui.outputSelector.currentNodeID)
     self._parameterNode.SetParameter("DrawMode", next(filter(lambda a: a.checked, self.ui.drawModeMenu.actions())).text)
     self._parameterNode.SetParameter("Spread", str(self.ui.spreadSlider.value))
