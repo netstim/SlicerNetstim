@@ -178,7 +178,7 @@
           </widget>
          </item>
          <item row="0" column="1">
-          <widget class="ctkSliderWidget" name="spreadSlider">
+          <widget class="ctkSliderWidget" name="radiusSlider">
            <property name="toolTip">
             <string>Set threshold value for computing the output image. Voxels that have intensities lower than this value will set to zero.</string>
            </property>

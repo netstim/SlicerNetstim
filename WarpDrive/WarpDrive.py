@@ -105,7 +105,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.targetFiducialsComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     self.ui.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onOutputNodeChanged)
     self.ui.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-    self.ui.spreadSlider.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
+    self.ui.radiusSlider.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
     self.ui.spacingSameAsInputCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
     self.ui.spacingSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
     self.ui.stiffnessSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
@@ -275,9 +275,9 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.targetFiducialsComboBox.setCurrentNode(self._parameterNode.GetNodeReference("TargetFiducial"))
     self.ui.outputSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputGridTransform"))
 
-    spread = float(self._parameterNode.GetParameter("Spread"))
-    self.ui.spreadSlider.value = spread
-    if spread < self.ui.spreadSlider.minimum or spread > self.ui.spreadSlider.maximum:
+    spread = float(self._parameterNode.GetParameter("Radius"))
+    self.ui.radiusSlider.value = spread
+    if spread < self.ui.radiusSlider.minimum or spread > self.ui.radiusSlider.maximum:
       self.updateParameterNodeFromGUI()
 
     self.ui.spacingSpinBox.value = float(self._parameterNode.GetParameter("Spacing"))
@@ -322,7 +322,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._parameterNode.SetNodeReferenceID("TargetFiducial", self.ui.targetFiducialsComboBox.currentNodeID)
     self._parameterNode.SetNodeReferenceID("OutputGridTransform", self.ui.outputSelector.currentNodeID)
     self._parameterNode.SetParameter("DrawMode", next(filter(lambda a: a.checked, self.ui.drawModeMenu.actions())).text)
-    self._parameterNode.SetParameter("Spread", str(self.ui.spreadSlider.value))
+    self._parameterNode.SetParameter("Radius", str(self.ui.radiusSlider.value))
     self._parameterNode.SetParameter("Stiffness", str(self.ui.stiffnessSpinBox.value))
     # spacing
     if self.ui.spacingSameAsInputCheckBox.checked:
@@ -472,8 +472,8 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
     """
     Initialize parameter node with default settings.
     """
-    if not parameterNode.GetParameter("Spread"):
-      parameterNode.SetParameter("Spread", "15.0")
+    if not parameterNode.GetParameter("Radius"):
+      parameterNode.SetParameter("Radius", "15.0")
     if not parameterNode.GetParameter("Spacing"):
       parameterNode.SetParameter("Spacing", "2.0")
     if not parameterNode.GetParameter("RBFRadius"):

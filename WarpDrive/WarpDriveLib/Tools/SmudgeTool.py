@@ -56,7 +56,7 @@ class SmudgeToolEffect(AbstractCircleEffect):
       sourceFiducial, targetFiducial = self.getSourceTargetFromPoints()
       # apply
       WarpDriveUtil.addCorrection(sourceFiducial, targetFiducial, 
-                              spread=self.parameterNode.GetParameter("Spread"))
+                              spread=self.parameterNode.GetParameter("Radius"))
       self.parameterNode.SetParameter("Update","true")
       # reset
       self.interactionPoints = vtk.vtkPoints()
@@ -69,7 +69,7 @@ class SmudgeToolEffect(AbstractCircleEffect):
 
     elif event == 'MouseMoveEvent' and self.smudging:
 
-      r = int(round(float(self.parameterNode.GetParameter("Spread")) / self.auxTransformNode.GetTransformFromParent().GetDisplacementGrid().GetSpacing()[0])) # Asume isotropic!
+      r = int(round(float(self.parameterNode.GetParameter("Radius")) / self.auxTransformNode.GetTransformFromParent().GetDisplacementGrid().GetSpacing()[0])) # Asume isotropic!
       sphereResult = self.createSphere(r)
       currentPoint = self.xyToRAS(self.interactor.GetEventPosition())
       currentIndex = self.getCurrentIndex(r, currentPoint, self.auxTransfromRASToIJK)

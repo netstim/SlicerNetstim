@@ -36,7 +36,7 @@ class PointToPointToolEffect(AbstractPointToPointEffect):
       sourceFiducial.ApplyTransform(self.parameterNode.GetNodeReference("OutputGridTransform").GetTransformFromParent()) # undo current
 
       WarpDriveUtil.addCorrection(sourceFiducial, targetFiducial, 
-                              spread=self.parameterNode.GetParameter("Spread")) 
+                              spread=self.parameterNode.GetParameter("Radius")) 
 
       self.parameterNode.SetParameter("Update","true")
  
