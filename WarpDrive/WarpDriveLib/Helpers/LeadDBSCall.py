@@ -7,7 +7,7 @@ from subprocess import call
 import json
 import glob
 
-from . import WarpDriveUtil, GridNodeHelper
+from . import GridNodeHelper
 
 def checkExtensionInstall(extensionName):
   em = slicer.app.extensionsManagerModel()
@@ -181,7 +181,7 @@ def setTargetFiducialsAsFixed():
       # remove target attribute
       shNode.RemoveItemAttribute(shNode.GetItemByDataNode(fiducialNode), 'target')
       # add as fixed point
-      WarpDriveUtil.addFixedPoint(fiducialNode)
+      # WarpDriveUtil.addFixedPoint(fiducialNode)
       # remove correction
       removeNodeAndChildren(parentFolder)
       # change fixed point name

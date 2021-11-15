@@ -5,7 +5,7 @@ import numpy as np
 from ..Widgets.ToolWidget   import AbstractToolWidget
 from ..Effects.PointToPointEffect import AbstractPointToPointEffect
 
-from ..Helpers import GridNodeHelper, WarpDriveUtil
+from ..Helpers import GridNodeHelper
 
 class PointToPointToolWidget(AbstractToolWidget):
     
@@ -35,8 +35,8 @@ class PointToPointToolEffect(AbstractPointToPointEffect):
 
       sourceFiducial.ApplyTransform(self.parameterNode.GetNodeReference("OutputGridTransform").GetTransformFromParent()) # undo current
 
-      WarpDriveUtil.addCorrection(sourceFiducial, targetFiducial, 
-                              spread=self.parameterNode.GetParameter("Radius")) 
+      self.setFiducialNodeAs("Source", sourceFiducial, targetFiducial.GetName(), self.parameterNode.GetParameter("Radius"))
+      self.setFiducialNodeAs("Target", targetFiducial, targetFiducial.GetName(), self.parameterNode.GetParameter("Radius"))
 
       self.parameterNode.SetParameter("Update","true")
  

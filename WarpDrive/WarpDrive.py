@@ -8,8 +8,8 @@ from slicer.util import VTKObservationMixin
 import numpy as np
 
 from WarpDriveLib.Tools import NoneTool, SmudgeTool, DrawTool, PointToPointTool
-from WarpDriveLib.Helpers import GridNodeHelper, WarpDriveUtil, LeadDBSCall
-from WarpDriveLib.Widgets import CorrectionsTable, TreeView, Toolbar
+from WarpDriveLib.Helpers import GridNodeHelper, LeadDBSCall
+from WarpDriveLib.Widgets import CorrectionsTable, Toolbar
 
 #
 # WarpDrive
@@ -275,9 +275,9 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.targetFiducialsComboBox.setCurrentNode(self._parameterNode.GetNodeReference("TargetFiducial"))
     self.ui.outputSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputGridTransform"))
 
-    spread = float(self._parameterNode.GetParameter("Radius"))
-    self.ui.radiusSlider.value = spread
-    if spread < self.ui.radiusSlider.minimum or spread > self.ui.radiusSlider.maximum:
+    radius = float(self._parameterNode.GetParameter("Radius"))
+    self.ui.radiusSlider.value = radius
+    if radius < self.ui.radiusSlider.minimum or radius > self.ui.radiusSlider.maximum:
       self.updateParameterNodeFromGUI()
 
     self.ui.spacingSpinBox.value = float(self._parameterNode.GetParameter("Spacing"))
@@ -354,24 +354,9 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
     qt.QApplication.processEvents()
 
-    # update (sets the RBF value)
-    self.updateParameterNodeFromGUI()
-    # get source and target from points
-    sourcePoints, radius1 = WarpDriveUtil.getPointsFromAttribute('source')
-    targetPoints, radius1 = WarpDriveUtil.getPointsFromAttribute('target')
-    fixedPoints, radius2 = WarpDriveUtil.getPointsFromAttribute('fixed')
-    # add fixed to source and target
-    sourcePoints.InsertPoints(sourcePoints.GetNumberOfPoints(), fixedPoints.GetNumberOfPoints(), 0, fixedPoints)
-    targetPoints.InsertPoints(targetPoints.GetNumberOfPoints(), fixedPoints.GetNumberOfPoints(), 0, fixedPoints)
     # create nodes
-    sourceFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
-    sourceFiducial.SetControlPointPositionsWorld(sourcePoints)
-    sourceFiducial.GetDisplayNode().SetTextScale(0)
-    sourceFiducial.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
-    targetFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
-    targetFiducial.SetControlPointPositionsWorld(targetPoints)
-    targetFiducial.GetDisplayNode().SetVisibility(0)
-    targetFiducial.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
+    sourceFiducial = self._parameterNode.GetNodeReference("SourceFiducial")
+    targetFiducial = self._parameterNode.GetNodeReference("TargetFiducial")
     # reference
     size,origin,spacing = GridNodeHelper.getGridDefinition(self._parameterNode.GetNodeReference("InputNode"))
     userSpacing = [float(self._parameterNode.GetParameter("Spacing"))] * 3
@@ -380,7 +365,11 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # output
     outputNode = self._parameterNode.GetNodeReference("OutputGridTransform")
     # params
-    RBFRadius = ",".join(radius1 + radius2)
+    RBFRadius = []
+    for i in range(targetFiducial.GetNumberOfControlPoints()):
+      if targetFiducial.GetNthControlPointSelected(i):
+        RBFRadius.append(targetFiducial.GetNthControlPointDescription(i))
+    RBFRadius = ",".join(RBFRadius)
     stiffness = float(self._parameterNode.GetParameter("Stiffness"))
 
     # save current state if leadDBS call in case of error
@@ -391,7 +380,8 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._parameterNode.GetNodeReference("InputNode").SetAndObserveTransformNodeID(None)
 
     # preview
-    visualizationNode = WarpDriveUtil.previewWarp(sourceFiducial, targetFiducial, outputNode)
+    visualizationNodes = self.logic.previewWarp(sourceFiducial, targetFiducial)
+    qt.QApplication.processEvents()
 
     # run
     self._parameterNode.SetParameter("Running", "true")
@@ -402,15 +392,15 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.ui.landwarpWidget.setCurrentCommandLineModuleNode(cliNode)
       # add observer
       cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, \
-        lambda c,e,o=outputNode,v=visualizationNode,s=sourceFiducial,t=targetFiducial,a=auxVolumeNode: self.onStatusModifiedEvent(c,o,v,s,t,a))
+        lambda c,e,o=outputNode,v=visualizationNodes,a=auxVolumeNode: self.onStatusModifiedEvent(c,o,v,a))
     else:
-      self.onStatusModifiedEvent(None,outputNode,visualizationNode,sourceFiducial,targetFiducial,auxVolumeNode)
+      self.onStatusModifiedEvent(None,outputNode,visualizationNodes,auxVolumeNode)
 
     # cursor
     qt.QApplication.setOverrideCursor(qt.Qt.ArrowCursor)
     
   
-  def onStatusModifiedEvent(self, caller, outputNode, visualizationNode, sourceFiducial, targetFiducial, auxVolumeNode):
+  def onStatusModifiedEvent(self, caller, outputNode, visualizationNodes, auxVolumeNode):
     
     if isinstance(caller, slicer.vtkMRMLCommandLineModuleNode):
       if caller.GetStatusString() == 'Completed':
@@ -424,9 +414,8 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._parameterNode.GetNodeReference("InputNode").Modified()
 
     # remove aux
-    slicer.mrmlScene.RemoveNode(visualizationNode)
-    slicer.mrmlScene.RemoveNode(sourceFiducial)
-    slicer.mrmlScene.RemoveNode(targetFiducial)
+    for node in visualizationNodes:
+      slicer.mrmlScene.RemoveNode(node)
     slicer.mrmlScene.RemoveNode(auxVolumeNode)
 
     # set parameter
@@ -511,6 +500,32 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
 
     return cliNode
 
+  def previewWarp(self, sourceNode, targetNode):
+    # points
+    sourcePoints = vtk.vtkPoints()
+    targetPoints = vtk.vtkPoints()
+    for i in range(targetNode.GetNumberOfControlPoints()):
+      if targetNode.GetNthControlPointSelected(i):
+        sourcePoints.InsertNextPoint(sourceNode.GetNthControlPointPosition(i))
+        targetPoints.InsertNextPoint(targetNode.GetNthControlPointPosition(i))
+    sourceDisplayFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    sourceDisplayFiducial.GetDisplayNode().SetVisibility(0)
+    sourceDisplayFiducial.SetControlPointPositionsWorld(sourcePoints)
+    # thin plate
+    transform=vtk.vtkThinPlateSplineTransform()
+    transform.SetSourceLandmarks(sourcePoints)
+    transform.SetTargetLandmarks(targetPoints)
+    transform.SetBasisToR()
+    transform.Inverse()
+    transformNode=slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
+    transformNode.SetAndObserveTransformFromParent(transform)
+    # display
+    transformNode.CreateDefaultDisplayNodes()
+    transformNode.GetDisplayNode().SetVisibility(1)
+    transformNode.GetDisplayNode().SetVisibility3D(0)
+    transformNode.GetDisplayNode().SetAndObserveGlyphPointsNode(sourceDisplayFiducial)
+    transformNode.GetDisplayNode().SetVisibility2D(1)
+    return transformNode, sourceDisplayFiducial
 
 
 #

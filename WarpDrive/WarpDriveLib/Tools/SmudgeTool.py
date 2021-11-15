@@ -5,7 +5,7 @@ import numpy as np
 from ..Widgets.ToolWidget   import AbstractToolWidget
 from ..Effects.CircleEffect import AbstractCircleEffect
 
-from ..Helpers import GridNodeHelper, WarpDriveUtil
+from ..Helpers import GridNodeHelper
 
 class SmudgeToolWidget(AbstractToolWidget):
     
@@ -55,8 +55,8 @@ class SmudgeToolEffect(AbstractCircleEffect):
       # get source and target
       sourceFiducial, targetFiducial = self.getSourceTargetFromPoints()
       # apply
-      WarpDriveUtil.addCorrection(sourceFiducial, targetFiducial, 
-                              spread=self.parameterNode.GetParameter("Radius"))
+      self.setFiducialNodeAs("Source", sourceFiducial, targetFiducial.GetName(), self.parameterNode.GetParameter("Radius"))
+      self.setFiducialNodeAs("Target", targetFiducial, targetFiducial.GetName(), self.parameterNode.GetParameter("Radius"))
       self.parameterNode.SetParameter("Update","true")
       # reset
       self.interactionPoints = vtk.vtkPoints()

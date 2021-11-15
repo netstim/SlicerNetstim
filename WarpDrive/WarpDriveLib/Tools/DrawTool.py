@@ -5,7 +5,7 @@ import numpy as np
 from ..Widgets.ToolWidget   import AbstractToolWidget
 from ..Effects.DrawEffect import AbstractDrawEffect
 
-from ..Helpers import GridNodeHelper, WarpDriveUtil
+from ..Helpers import GridNodeHelper
 
 class DrawToolWidget(AbstractToolWidget):
   
@@ -68,8 +68,8 @@ class DrawToolEffect(AbstractDrawEffect):
 
       self.sourceFiducial.ApplyTransform(self.parameterNode.GetNodeReference("OutputGridTransform").GetTransformFromParent()) # undo current
 
-      WarpDriveUtil.addCorrection(self.sourceFiducial, targetFiducial, 
-                              spread=self.parameterNode.GetParameter("Radius"))
+      self.setFiducialNodeAs("Source", self.sourceFiducial, targetFiducial.GetName(), self.parameterNode.GetParameter("Radius"))
+      self.setFiducialNodeAs("Target", targetFiducial, targetFiducial.GetName(), self.parameterNode.GetParameter("Radius"))
 
       self.parameterNode.SetParameter("Update","true")
       self.sourceFiducial = None

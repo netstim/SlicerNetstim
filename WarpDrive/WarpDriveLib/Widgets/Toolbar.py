@@ -8,7 +8,7 @@ import re
 
 import WarpDrive
 import ImportAtlas
-from ..Helpers import LeadDBSCall, WarpDriveUtil
+from ..Helpers import LeadDBSCall
 from ..Widgets import ToolWidget
 
 class reducedToolbar(QToolBar, VTKObservationMixin):
@@ -233,7 +233,7 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     ToolWidget.AbstractToolWidget.cleanEffects()
     subjectPath = self.parameterNode.GetParameter("subjectPath")
 
-    if WarpDriveUtil.getPointsFromAttribute('source').GetNumberOfPoints(): # corrections made
+    if self.parameterNode.GetNodeReference("SourceFiducial").GetNumberOfPoints(): # corrections made
       if self.hardenChangesCheckBox.checked:
         LeadDBSCall.applyChanges(subjectPath, self.parameterNode.GetNodeReference("InputNode"), self.parameterNode.GetNodeReference("ImageNode")) # save changes
         LeadDBSCall.setTargetFiducialsAsFixed() # change target fiducial as fixed
