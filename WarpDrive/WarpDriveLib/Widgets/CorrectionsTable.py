@@ -99,7 +99,7 @@ class WarpDriveCorrectionsTable(qt.QWidget):
     self.view.setHorizontalScrollMode(self.view.ScrollPerPixel)
     self.view.setModel(self.model)
 
-    self.view.selectionModel().selectionChanged.connect(self.onSelectionChanged)
+    
 
     self.view.setItemDelegateForColumn(1, TextEditDelegate(self.model, parent.renameControlPoints))
     self.view.setItemDelegateForColumn(2, SpinBoxDelegate(self.model, parent.updateRadius))
@@ -132,6 +132,7 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
     self._updatingFiducials = False
     self.widget = WarpDriveCorrectionsTable(self)
     self.widget.removeButton.clicked.connect(self.onRemoveButton)
+    self.widget.view.selectionModel().selectionChanged.connect(self.onSelectionChanged)
     self.targetFiducialObservers = []
     self.parameterNode = WarpDrive.WarpDriveLogic().getParameterNode()
     self.addObserver(self.parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateNodesListeners)
@@ -189,12 +190,17 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
 
       self.widget.model.setData(index, val, role)
 
-  def onRemoveButton(self):
+  def getSelectedCorrectionName(self):
     row = self.widget.getSelectedRow()
     if row is None or self.targetFiducialNodeID=="":
       return
     index = self.widget.model.index(row, 1)
-    correctionName = self.widget.model.itemData(index)[0]
+    return self.widget.model.itemData(index)[0]
+
+  def onRemoveButton(self):
+    correctionName = self.getSelectedCorrectionName()
+    if correctionName is None:
+      return
     targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
     sourceFiducialNode = slicer.mrmlScene.GetNodeByID(self.sourceFiducialNodeID)
     for i in range(targetFiducialNode.GetNumberOfControlPoints()-1,-1,-1):
@@ -237,3 +243,14 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
         targetFiducialNode.SetNthControlPointSelected(i, value)
         sourceFiducialNode.SetNthControlPointSelected(i, value)
     self._updatingFiducials = False
+
+  def onSelectionChanged(self):
+    correctionName = self.getSelectedCorrectionName()
+    if correctionName is None:
+      return
+    targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
+    for i in range(targetFiducialNode.GetNumberOfControlPoints()):
+      if targetFiducialNode.GetNthControlPointLabel(i) == correctionName:
+        markupsLogic = slicer.modules.markups.logic()
+        markupsLogic.JumpSlicesToNthPointInMarkup(self.targetFiducialNodeID,i,False)
+        return
