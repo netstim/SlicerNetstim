@@ -58,7 +58,8 @@ class DrawToolEffect(AbstractDrawEffect):
           return
 
       else: # use new drawing as target fiducial
-        targetFiducial = self.getFiducialFromDrawing(nPoints = self.sourceFiducial.GetNumberOfControlPoints())  
+        targetFiducial = self.getFiducialFromDrawing(nPoints = self.sourceFiducial.GetNumberOfControlPoints())
+        targetFiducial.SetName(slicer.mrmlScene.GenerateUniqueName('drawing'))
 
       if targetFiducial is None:
         slicer.mrmlScene.RemoveNode(self.sourceFiducial)

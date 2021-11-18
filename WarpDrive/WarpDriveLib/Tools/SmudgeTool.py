@@ -114,6 +114,7 @@ class SmudgeToolEffect(AbstractCircleEffect):
     targetFiducial.GetDisplayNode().SetVisibility(0)
     targetFiducial.SetControlPointPositionsWorld(self.interactionPoints)
     targetFiducial.ApplyTransform(self.auxTransformNode.GetTransformToParent()) # apply smudge
+    targetFiducial.SetName(slicer.mrmlScene.GenerateUniqueName('smudge'))
 
     return sourceFiducial, targetFiducial
 

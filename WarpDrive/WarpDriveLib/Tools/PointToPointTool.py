@@ -53,7 +53,7 @@ class PointToPointToolEffect(AbstractPointToPointEffect):
     targetFiducial.SetControlPointPositionsWorld(self.transform.GetTargetLandmarks())
     targetFiducial.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
     targetFiducial.GetDisplayNode().SetVisibility(0)
-    targetFiducial.SetName(slicer.mrmlScene.GenerateUniqueName('Point'))
+    targetFiducial.SetName(slicer.mrmlScene.GenerateUniqueName('point'))
     return sourceFiducial, targetFiducial
 
 

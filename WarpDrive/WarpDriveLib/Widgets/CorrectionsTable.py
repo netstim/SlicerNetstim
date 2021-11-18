@@ -71,19 +71,19 @@ class WarpDriveCorrectionsTable(qt.QWidget):
   def __init__(self, parent):
     super().__init__()
 
-    self.addButton = qt.QPushButton('+')
-    self.removeButton = qt.QPushButton('-')
+    self.sourceVisibleCheckBox = qt.QCheckBox('View Source')
+    self.targetVisibleCheckBox = qt.QCheckBox('View Target')
 
-    self.linkStagesPushButton = qt.QPushButton('Link Across Stages')
-    self.linkStagesPushButton.toolTip = 'When checked, settings will be the same for all stages.'
-    self.linkStagesPushButton.checkable = True
+    self.removeButton = qt.QPushButton('Remove')
+    self.addFixedPointButton = qt.QPushButton('Add Fixed Point')
 
     self.buttonsFrame = qt.QFrame()
     self.buttonsFrame.setSizePolicy(qt.QSizePolicy.Preferred, qt.QSizePolicy.Minimum)
     self.buttonsFrame.setLayout(qt.QHBoxLayout())
-    self.buttonsFrame.layout().addWidget(self.addButton)
+    self.buttonsFrame.layout().addWidget(self.sourceVisibleCheckBox)
+    self.buttonsFrame.layout().addWidget(self.targetVisibleCheckBox)
+    self.buttonsFrame.layout().addWidget(self.addFixedPointButton)
     self.buttonsFrame.layout().addWidget(self.removeButton)
-    self.buttonsFrame.layout().addWidget(self.linkStagesPushButton)
 
     columnNames = ["Include", "Name", "Radius"]
     self.model = firstColumnCheckableModel(1, len(columnNames))
@@ -98,9 +98,7 @@ class WarpDriveCorrectionsTable(qt.QWidget):
     self.view.horizontalHeader().setStretchLastSection(True)
     self.view.setHorizontalScrollMode(self.view.ScrollPerPixel)
     self.view.setModel(self.model)
-
     
-
     self.view.setItemDelegateForColumn(1, TextEditDelegate(self.model, parent.renameControlPoints))
     self.view.setItemDelegateForColumn(2, SpinBoxDelegate(self.model, parent.updateRadius))
 
@@ -132,10 +130,30 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
     self._updatingFiducials = False
     self.widget = WarpDriveCorrectionsTable(self)
     self.widget.removeButton.clicked.connect(self.onRemoveButton)
+    self.widget.addFixedPointButton.clicked.connect(self.onAddFixedPointButton)
     self.widget.view.selectionModel().selectionChanged.connect(self.onSelectionChanged)
+    self.widget.sourceVisibleCheckBox.toggled.connect(self.onSourceVisibleToggled)
+    self.widget.targetVisibleCheckBox.toggled.connect(self.onTargetVisibleToggled)
     self.targetFiducialObservers = []
     self.parameterNode = WarpDrive.WarpDriveLogic().getParameterNode()
     self.addObserver(self.parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateNodesListeners)
+
+  def onSourceVisibleToggled(self):
+    if self.sourceFiducialNodeID != "":
+      sourceFiducialNode = slicer.mrmlScene.GetNodeByID(self.sourceFiducialNodeID)
+      sourceFiducialNode.GetDisplayNode().SetVisibility(self.widget.sourceVisibleCheckBox.checked)
+
+  def onTargetVisibleToggled(self):
+    if self.targetFiducialNodeID != "":
+      targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
+      targetFiducialNode.GetDisplayNode().SetVisibility(self.widget.targetVisibleCheckBox.checked)
+
+  def onAddFixedPointButton(self):
+    interactionNode = slicer.app.applicationLogic().GetInteractionNode()
+    selectionNode = slicer.app.applicationLogic().GetSelectionNode()
+    selectionNode.SetReferenceActivePlaceNodeClassName("vtkMRMLMarkupsFiducialNode")
+    selectionNode.SetActivePlaceNodeID(self.targetFiducialNodeID)
+    interactionNode.SetCurrentInteractionMode(interactionNode.Place)
 
   def updateNodesListeners(self, caller, event):
     sourceFiducialNode = self.parameterNode.GetNodeReference("SourceFiducial")
@@ -153,6 +171,7 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
       self.targetFiducialObservers.append(targetFiducialNode.AddObserver(targetFiducialNode.PointAddedEvent, self.targetFiducialModified))
       self.targetFiducialObservers.append(targetFiducialNode.AddObserver(targetFiducialNode.PointRemovedEvent, self.targetFiducialModified))
       self.targetFiducialObservers.append(targetFiducialNode.AddObserver(targetFiducialNode.PointModifiedEvent, self.targetFiducialModified))
+      self.targetFiducialObservers.append(targetFiducialNode.AddObserver(targetFiducialNode.PointPositionDefinedEvent, self.onPointPositionDefined))
       self.setUpWidget()
 
   def targetFiducialModified(self, caller, event):
@@ -189,6 +208,18 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
         role = qt.Qt.DisplayRole
 
       self.widget.model.setData(index, val, role)
+
+  def onPointPositionDefined(self, caller, event):
+    targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
+    lastControlPoint = targetFiducialNode.GetNumberOfControlPoints()-1
+    name = targetFiducialNode.GetNthControlPointLabel(lastControlPoint)
+    if name.startswith(targetFiducialNode.GetName()):
+      sourceFiducialNode = slicer.mrmlScene.GetNodeByID(self.sourceFiducialNodeID)
+      sourceFiducialNode.AddControlPoint(vtk.vtkVector3d(targetFiducialNode.GetNthControlPointPosition(lastControlPoint)))
+      targetFiducialNode.SetNthControlPointLabel(lastControlPoint, slicer.mrmlScene.GenerateUniqueName('fixed point'))
+      targetFiducialNode.SetNthControlPointDescription(lastControlPoint, self.parameterNode.GetParameter("Radius"))
+      sourceFiducialNode.SetNthControlPointLabel(lastControlPoint, targetFiducialNode.GetNthControlPointLabel(lastControlPoint))
+      sourceFiducialNode.SetNthControlPointDescription(lastControlPoint, self.parameterNode.GetParameter("Radius"))
 
   def getSelectedCorrectionName(self):
     row = self.widget.getSelectedRow()
