@@ -34,6 +34,7 @@ set(MODULE_PYTHON_RESOURCES
   Resources/Icons/PointToPoint.png
   Resources/Icons/Rename.png
   Resources/Icons/Smudge.png
+  Resources/Icons/SlicerVisible.png
   Resources/UI/${MODULE_NAME}.ui
   )
 

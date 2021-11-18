@@ -1,3 +1,4 @@
+import os
 import qt, vtk, slicer
 from slicer.util import VTKObservationMixin
 import WarpDrive
@@ -71,17 +72,59 @@ class WarpDriveCorrectionsTable(qt.QWidget):
   def __init__(self, parent):
     super().__init__()
 
-    self.sourceVisibleCheckBox = qt.QCheckBox('View Source')
-    self.targetVisibleCheckBox = qt.QCheckBox('View Target')
+    effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'SlicerVisible.png'))
+    effectIcon = qt.QIcon(effectPixmap)
+    self.sourceVisibleButton = qt.QToolButton()
+    self.sourceVisibleButton.setToolButtonStyle(qt.Qt.ToolButtonTextUnderIcon)
+    self.sourceVisibleButton.setIcon(effectIcon)
+    self.sourceVisibleButton.setText('Source')
+    self.sourceVisibleButton.setToolTip('Toggle source fiducials visibility')
+    self.sourceVisibleButton.setIconSize(effectPixmap.rect().size())
+    self.sourceVisibleButton.setCheckable(True)
+    self.sourceVisibleButton.setChecked(False)
+    self.sourceVisibleButton.setEnabled(True)
+    self.sourceVisibleButton.setSizePolicy(qt.QSizePolicy.MinimumExpanding,qt.QSizePolicy.Maximum)
 
-    self.removeButton = qt.QPushButton('Remove')
-    self.addFixedPointButton = qt.QPushButton('Add Fixed Point')
+    effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'SlicerVisible.png'))
+    effectIcon = qt.QIcon(effectPixmap)
+    self.targetVisibleButton = qt.QToolButton()
+    self.targetVisibleButton.setToolButtonStyle(qt.Qt.ToolButtonTextUnderIcon)
+    self.targetVisibleButton.setIcon(effectIcon)
+    self.targetVisibleButton.setText('Target')
+    self.targetVisibleButton.setToolTip('Toggle target fiducials visibility')
+    self.targetVisibleButton.setIconSize(effectPixmap.rect().size())
+    self.targetVisibleButton.setCheckable(True)
+    self.targetVisibleButton.setChecked(False)
+    self.targetVisibleButton.setEnabled(True)
+    self.targetVisibleButton.setSizePolicy(qt.QSizePolicy.MinimumExpanding,qt.QSizePolicy.Maximum)
+
+    effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'Add.png'))
+    effectIcon = qt.QIcon(effectPixmap)
+    self.addFixedPointButton = qt.QToolButton()
+    self.addFixedPointButton.setToolButtonStyle(qt.Qt.ToolButtonTextUnderIcon)
+    self.addFixedPointButton.setIcon(effectIcon)
+    self.addFixedPointButton.setText('Fixed point')
+    self.addFixedPointButton.setToolTip('Add fixed point')
+    self.addFixedPointButton.setIconSize(effectPixmap.rect().size())
+    self.addFixedPointButton.setEnabled(True)
+    self.addFixedPointButton.setSizePolicy(qt.QSizePolicy.MinimumExpanding,qt.QSizePolicy.Maximum)
+
+    effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'Delete.png'))
+    effectIcon = qt.QIcon(effectPixmap)
+    self.removeButton = qt.QToolButton()
+    self.removeButton.setToolButtonStyle(qt.Qt.ToolButtonTextUnderIcon)
+    self.removeButton.setIcon(effectIcon)
+    self.removeButton.setText('Delete')
+    self.removeButton.setToolTip('Delete selected correction')
+    self.removeButton.setIconSize(effectPixmap.rect().size())
+    self.removeButton.setEnabled(True)
+    self.removeButton.setSizePolicy(qt.QSizePolicy.MinimumExpanding,qt.QSizePolicy.Maximum)
 
     self.buttonsFrame = qt.QFrame()
     self.buttonsFrame.setSizePolicy(qt.QSizePolicy.Preferred, qt.QSizePolicy.Minimum)
     self.buttonsFrame.setLayout(qt.QHBoxLayout())
-    self.buttonsFrame.layout().addWidget(self.sourceVisibleCheckBox)
-    self.buttonsFrame.layout().addWidget(self.targetVisibleCheckBox)
+    self.buttonsFrame.layout().addWidget(self.sourceVisibleButton)
+    self.buttonsFrame.layout().addWidget(self.targetVisibleButton)
     self.buttonsFrame.layout().addWidget(self.addFixedPointButton)
     self.buttonsFrame.layout().addWidget(self.removeButton)
 
@@ -132,8 +175,8 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
     self.widget.removeButton.clicked.connect(self.onRemoveButton)
     self.widget.addFixedPointButton.clicked.connect(self.onAddFixedPointButton)
     self.widget.view.selectionModel().selectionChanged.connect(self.onSelectionChanged)
-    self.widget.sourceVisibleCheckBox.toggled.connect(self.onSourceVisibleToggled)
-    self.widget.targetVisibleCheckBox.toggled.connect(self.onTargetVisibleToggled)
+    self.widget.sourceVisibleButton.toggled.connect(self.onSourceVisibleToggled)
+    self.widget.targetVisibleButton.toggled.connect(self.onTargetVisibleToggled)
     self.targetFiducialObservers = []
     self.parameterNode = WarpDrive.WarpDriveLogic().getParameterNode()
     self.addObserver(self.parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateNodesListeners)
@@ -141,12 +184,12 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
   def onSourceVisibleToggled(self):
     if self.sourceFiducialNodeID != "":
       sourceFiducialNode = slicer.mrmlScene.GetNodeByID(self.sourceFiducialNodeID)
-      sourceFiducialNode.GetDisplayNode().SetVisibility(self.widget.sourceVisibleCheckBox.checked)
+      sourceFiducialNode.GetDisplayNode().SetVisibility(self.widget.sourceVisibleButton.checked)
 
   def onTargetVisibleToggled(self):
     if self.targetFiducialNodeID != "":
       targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
-      targetFiducialNode.GetDisplayNode().SetVisibility(self.widget.targetVisibleCheckBox.checked)
+      targetFiducialNode.GetDisplayNode().SetVisibility(self.widget.targetVisibleButton.checked)
 
   def onAddFixedPointButton(self):
     interactionNode = slicer.app.applicationLogic().GetInteractionNode()
