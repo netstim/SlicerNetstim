@@ -285,6 +285,7 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
       targetFiducialNode.SetNthControlPointDescription(lastControlPoint, self.parameterNode.GetParameter("Radius"))
       sourceFiducialNode.SetNthControlPointLabel(lastControlPoint, targetFiducialNode.GetNthControlPointLabel(lastControlPoint))
       sourceFiducialNode.SetNthControlPointDescription(lastControlPoint, self.parameterNode.GetParameter("Radius"))
+    self.parameterNode.SetParameter("Update","true")
 
   def getSelectedCorrectionName(self):
     row = self.widget.getSelectedRow()
@@ -303,6 +304,7 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
       if targetFiducialNode.GetNthControlPointLabel(i) == correctionName:
         targetFiducialNode.RemoveNthControlPoint(i)
         sourceFiducialNode.RemoveNthControlPoint(i)
+    self.parameterNode.SetParameter("Update","true")
 
   def renameControlPoints(self, previousName, newName):
     if self.targetFiducialNodeID == "":
