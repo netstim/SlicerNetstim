@@ -77,8 +77,8 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # Add Tree View
     correctionsManager = CorrectionsTable.WarpDriveCorrectionsManager()
-    dataControlLayout = qt.QVBoxLayout(self.ui.dataControlFrame)
-    dataControlLayout.addWidget(correctionsManager.widget)
+    correctionsLayout = qt.QVBoxLayout(self.ui.correctionsFrame)
+    correctionsLayout.addWidget(correctionsManager.widget)
 
     # add cli progress bar
     self.ui.landwarpWidget = slicer.modules.fiducialregistrationvariablerbf.createNewWidgetRepresentation()
@@ -114,7 +114,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # MRML Scene
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
-    # self.addObserver(slicer.mrmlScene, slicer.mrmlScene.NodeAddedEvent, dataControlTree.updateTree)
+    # self.addObserver(slicer.mrmlScene, slicer.mrmlScene.NodeAddedEvent, correctionsTree.updateTree)
 
     # Initial GUI update
     self.updateGUIFromParameterNode()
@@ -285,6 +285,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     self.ui.outputSelector.enabled = self._parameterNode.GetNodeReference("InputNode")
     self.ui.toolsCollapsibleButton.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
+    self.ui.correctionsCollapsibleButton.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
     self.ui.outputCollapsibleButton.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
     self.ui.calculateButton.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
 
@@ -477,7 +478,7 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
   def run(self, referenceVolume, outputNode, sourceFiducial, targetFiducial, RBFRadius, stiffness):
 
     # run landmark registration if points available
-    if sourceFiducial.GetNumberOfControlPoints():
+    if RBFRadius != "":
       cliNode = self.computeWarp(referenceVolume, outputNode, sourceFiducial, targetFiducial, RBFRadius, stiffness)
     else:
       GridNodeHelper.emptyGridTransform(referenceVolume.GetImageData().GetDimensions(), referenceVolume.GetOrigin(), referenceVolume.GetSpacing(), outputNode)

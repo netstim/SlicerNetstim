@@ -178,6 +178,7 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
     self.widget.sourceVisibleButton.toggled.connect(self.onSourceVisibleToggled)
     self.widget.targetVisibleButton.toggled.connect(self.onTargetVisibleToggled)
     self.targetFiducialObservers = []
+    self.sourceFiducialObservers = []
     self.parameterNode = WarpDrive.WarpDriveLogic().getParameterNode()
     self.addObserver(self.parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateNodesListeners)
 
@@ -192,6 +193,8 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
       targetFiducialNode.GetDisplayNode().SetVisibility(self.widget.targetVisibleButton.checked)
 
   def onAddFixedPointButton(self):
+    if self.targetFiducialNodeID == "":
+      return
     interactionNode = slicer.app.applicationLogic().GetInteractionNode()
     selectionNode = slicer.app.applicationLogic().GetSelectionNode()
     selectionNode.SetReferenceActivePlaceNodeClassName("vtkMRMLMarkupsFiducialNode")
@@ -201,7 +204,15 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
   def updateNodesListeners(self, caller, event):
     sourceFiducialNode = self.parameterNode.GetNodeReference("SourceFiducial")
     if sourceFiducialNode and self.sourceFiducialNodeID != sourceFiducialNode.GetID():
+      previousNode = slicer.mrmlScene.GetNodeByID(self.sourceFiducialNodeID)
+      if previousNode and bool(self.sourceFiducialObservers):
+        for obs in self.sourceFiducialObservers:
+          previousNode.RemoveObserver(obs)
+      sourceFiducialNode.GetDisplayNode().SetTextScale(0)
+      sourceFiducialNode.GetDisplayNode().SetVisibility(0)
       self.sourceFiducialNodeID = sourceFiducialNode.GetID()
+      self.sourceFiducialObservers.clear()
+      self.sourceFiducialObservers.append(sourceFiducialNode.AddObserver(slicer.vtkMRMLDisplayableNode.DisplayModifiedEvent, self.updateVisibilityWidget))
     
     targetFiducialNode = self.parameterNode.GetNodeReference("TargetFiducial")
     if targetFiducialNode and self.targetFiducialNodeID != targetFiducialNode.GetID():
@@ -209,13 +220,24 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
       if previousNode and bool(self.targetFiducialObservers):
         for obs in self.targetFiducialObservers:
           previousNode.RemoveObserver(obs)
+      targetFiducialNode.GetDisplayNode().SetTextScale(0)
       self.targetFiducialNodeID = targetFiducialNode.GetID()
       self.targetFiducialObservers.clear()
+      self.targetFiducialObservers.append(targetFiducialNode.AddObserver(slicer.vtkMRMLDisplayableNode.DisplayModifiedEvent, self.updateVisibilityWidget))
       self.targetFiducialObservers.append(targetFiducialNode.AddObserver(targetFiducialNode.PointAddedEvent, self.targetFiducialModified))
       self.targetFiducialObservers.append(targetFiducialNode.AddObserver(targetFiducialNode.PointRemovedEvent, self.targetFiducialModified))
       self.targetFiducialObservers.append(targetFiducialNode.AddObserver(targetFiducialNode.PointModifiedEvent, self.targetFiducialModified))
       self.targetFiducialObservers.append(targetFiducialNode.AddObserver(targetFiducialNode.PointPositionDefinedEvent, self.onPointPositionDefined))
       self.setUpWidget()
+      self.updateVisibilityWidget()
+
+  def updateVisibilityWidget(self, caller=None, event=None):
+    if self.targetFiducialNodeID != "":
+      targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
+      self.widget.targetVisibleButton.checked = targetFiducialNode.GetDisplayNode().GetVisibility()
+    if self.sourceFiducialNodeID != "":
+      sourceFiducialNode = slicer.mrmlScene.GetNodeByID(self.sourceFiducialNodeID)
+      self.widget.sourceVisibleButton.checked = sourceFiducialNode.GetDisplayNode().GetVisibility()
 
   def targetFiducialModified(self, caller, event):
     self.setUpWidget()

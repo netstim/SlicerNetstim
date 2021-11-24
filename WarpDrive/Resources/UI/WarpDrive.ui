@@ -203,7 +203,7 @@
     </widget>
    </item>
    <item row="7" column="0" colspan="2">
-    <widget class="ctkCollapsibleButton" name="dataControlCollapsibleButton">
+    <widget class="ctkCollapsibleButton" name="correctionsCollapsibleButton">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
        <horstretch>0</horstretch>
@@ -211,11 +211,11 @@
       </sizepolicy>
      </property>
      <property name="text">
-      <string>Data Control</string>
+      <string>Corrections</string>
      </property>
      <layout class="QFormLayout" name="formLayout_5">
       <item row="0" column="1">
-       <widget class="QFrame" name="dataControlFrame">
+       <widget class="QFrame" name="correctionsFrame">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
           <horstretch>0</horstretch>
@@ -237,6 +237,9 @@
     <widget class="ctkCollapsibleButton" name="outputCollapsibleButton">
      <property name="text">
       <string>Output</string>
+     </property>
+     <property name="collapsed">
+      <bool>true</bool>
      </property>
      <layout class="QFormLayout" name="formLayout_2">
       <item row="0" column="0">
