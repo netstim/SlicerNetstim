@@ -51,7 +51,7 @@ class AbstractCircleEffect(AbstractPointerEffect, VTKObservationMixin):
 
   def scaleRadius(self,scaleFactor):
     radius = float(self.parameterNode.GetParameter("Radius"))
-    self.parameterNode.SetParameter("Radius", str(radius * scaleFactor))
+    self.parameterNode.SetParameter("Radius", "%.2f" % (radius * scaleFactor))
 
   def updateSphere(self,caller=None,event=None):
     if self.sphere:

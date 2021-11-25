@@ -325,7 +325,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._parameterNode.SetNodeReferenceID("TargetFiducial", self.ui.targetFiducialsComboBox.currentNodeID)
     self._parameterNode.SetNodeReferenceID("OutputGridTransform", self.ui.outputSelector.currentNodeID)
     self._parameterNode.SetParameter("DrawMode", next(filter(lambda a: a.checked, self.ui.drawModeMenu.actions())).text)
-    self._parameterNode.SetParameter("Radius", str(self.ui.radiusSlider.value))
+    self._parameterNode.SetParameter("Radius", "%.2f" % self.ui.radiusSlider.value)
     self._parameterNode.SetParameter("Stiffness", str(self.ui.stiffnessSpinBox.value))
     # spacing
     if self.ui.spacingSameAsInputCheckBox.checked:
