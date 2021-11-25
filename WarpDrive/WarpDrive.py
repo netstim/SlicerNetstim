@@ -488,33 +488,6 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
 
     return cliNode
 
-  def previewWarp(self, sourceNode, targetNode):
-    # points
-    sourcePoints = vtk.vtkPoints()
-    targetPoints = vtk.vtkPoints()
-    for i in range(targetNode.GetNumberOfControlPoints()):
-      if targetNode.GetNthControlPointSelected(i):
-        sourcePoints.InsertNextPoint(sourceNode.GetNthControlPointPosition(i))
-        targetPoints.InsertNextPoint(targetNode.GetNthControlPointPosition(i))
-    sourceDisplayFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
-    sourceDisplayFiducial.GetDisplayNode().SetVisibility(0)
-    sourceDisplayFiducial.SetControlPointPositionsWorld(sourcePoints)
-    # thin plate
-    transform=vtk.vtkThinPlateSplineTransform()
-    transform.SetSourceLandmarks(sourcePoints)
-    transform.SetTargetLandmarks(targetPoints)
-    transform.SetBasisToR()
-    transform.Inverse()
-    transformNode=slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
-    transformNode.SetAndObserveTransformFromParent(transform)
-    # display
-    transformNode.CreateDefaultDisplayNodes()
-    transformNode.GetDisplayNode().SetVisibility(1)
-    transformNode.GetDisplayNode().SetVisibility3D(0)
-    transformNode.GetDisplayNode().SetAndObserveGlyphPointsNode(sourceDisplayFiducial)
-    transformNode.GetDisplayNode().SetVisibility2D(1)
-    return transformNode, sourceDisplayFiducial
-
 
 #
 # WarpDriveTest

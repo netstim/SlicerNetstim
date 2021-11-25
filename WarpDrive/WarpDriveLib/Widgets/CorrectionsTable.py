@@ -3,7 +3,7 @@ import qt, vtk, slicer
 from PythonQt import BoolResult
 from slicer.util import VTKObservationMixin
 import WarpDrive, ImportAtlas
-
+import numpy as np
 
 class TextEditDelegate(qt.QItemDelegate):
   def __init__(self, parent, renameControlPointsFunction):
@@ -123,6 +123,8 @@ class AtlasesTable(baseTable):
     for key in ['idColumn', 'transformColumn', 'descriptionColumn']:
       self.view.setColumnHidden(eval('self.view.model().'+key), True)
 
+    self.view.doubleClicked.connect(self.onDoubleClick)
+
     super().__init__()
 
     self.addButton.setText('Atlas')
@@ -152,7 +154,7 @@ class AtlasesTable(baseTable):
       self.view.attributeNameFilter = ('')
       self.view.attributeNameFilter = currentValue
 
-  def onRemoveButton(self, node):
+  def onRemoveButton(self):
     nodeID = self.view.currentItem()
     if not nodeID:
       return
@@ -163,6 +165,26 @@ class AtlasesTable(baseTable):
     for i in range(removeIDs.GetNumberOfIds()):
       shNode.RemoveItem(removeIDs.GetId(i))
 
+  def onDoubleClick(self):
+    nodeID = self.view.currentItem()
+    if not nodeID:
+      return
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    node = shNode.GetItemDataNode(nodeID)
+    if not isinstance(node, slicer.vtkMRMLModelNode):
+      return
+    pd = node.GetPolyData()
+    center = vtk.vtkCenterOfMass()
+    center.SetInputData(pd)
+    center.Update()
+    centerList = center.GetCenter()
+    # create markups node, add center as fiducial and jump and center slices
+    markupsNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    markupsNode.GetDisplayNode().SetVisibility(False)
+    markupsNode.AddFiducialFromArray(np.array(centerList),'')
+    markupsLogic = slicer.modules.markups.logic()
+    markupsLogic.JumpSlicesToNthPointInMarkup(markupsNode.GetID(),0,True)
+    slicer.mrmlScene.RemoveNode(markupsNode)
 
 class WarpDriveCorrectionsTable(baseTable):
 
@@ -182,7 +204,7 @@ class WarpDriveCorrectionsTable(baseTable):
     self.view.horizontalHeader().setStretchLastSection(True)
     self.view.setHorizontalScrollMode(self.view.ScrollPerPixel)
     self.view.setModel(self.model)
-    self.view.selectionModel().selectionChanged.connect(self.onSelectionChanged)
+    self.view.clicked.connect(self.onSelectionChanged)
 
     self.view.setItemDelegateForColumn(1, TextEditDelegate(self.model, self.renameControlPoints))
     self.view.setItemDelegateForColumn(2, SpinBoxDelegate(self.model, self.updateRadius))
@@ -418,9 +440,37 @@ class WarpDriveCorrectionsManager(VTKObservationMixin, WarpDriveCorrectionsTable
     correctionName = self.getSelectedCorrectionName()
     if correctionName is None:
       return
+    jumped = False
+    sourcePoints = vtk.vtkPoints()
+    targetPoints = vtk.vtkPoints()
     targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
+    sourceFiducialNode = slicer.mrmlScene.GetNodeByID(self.sourceFiducialNodeID)
     for i in range(targetFiducialNode.GetNumberOfControlPoints()):
       if targetFiducialNode.GetNthControlPointLabel(i) == correctionName:
-        markupsLogic = slicer.modules.markups.logic()
-        markupsLogic.JumpSlicesToNthPointInMarkup(self.targetFiducialNodeID,i,False)
-        return
+        if not jumped:
+          markupsLogic = slicer.modules.markups.logic()
+          markupsLogic.JumpSlicesToNthPointInMarkup(self.targetFiducialNodeID,i,False)
+          jumped = True
+        sourcePoints.InsertNextPoint(sourceFiducialNode.GetNthControlPointPosition(i))
+        targetPoints.InsertNextPoint(targetFiducialNode.GetNthControlPointPosition(i))        
+    # fiducial
+    sourceDisplayFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    sourceDisplayFiducial.GetDisplayNode().SetVisibility(0)
+    sourceDisplayFiducial.SetControlPointPositionsWorld(sourcePoints)
+    # thin plate
+    transform=vtk.vtkThinPlateSplineTransform()
+    transform.SetSourceLandmarks(sourcePoints)
+    transform.SetTargetLandmarks(targetPoints)
+    transform.SetBasisToR()
+    transform.Inverse()
+    transformNode=slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
+    transformNode.SetAndObserveTransformFromParent(transform)
+    # display
+    transformNode.CreateDefaultDisplayNodes()
+    transformNode.GetDisplayNode().SetVisibility(1)
+    transformNode.GetDisplayNode().SetVisibility3D(0)
+    transformNode.GetDisplayNode().SetAndObserveGlyphPointsNode(sourceDisplayFiducial)
+    transformNode.GetDisplayNode().SetVisibility2D(1)
+    # delete
+    qt.QTimer.singleShot(1000, lambda: slicer.mrmlScene.RemoveNode(transformNode))
+    qt.QTimer.singleShot(1000, lambda: slicer.mrmlScene.RemoveNode(sourceDisplayFiducial))
