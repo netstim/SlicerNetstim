@@ -1,4 +1,4 @@
-import vtk, slicer
+import qt, vtk, slicer
 import numpy as np
 
 
@@ -59,6 +59,7 @@ class SmudgeToolEffect(AbstractCircleEffect):
       self.setFiducialNodeAs("Target", targetFiducial, targetFiducial.GetName(), self.parameterNode.GetParameter("Radius"))
       self.parameterNode.SetParameter("Update","true")
       # reset
+      self.parameterNode.GetNodeReference("OutputGridTransform").HardenTransform()
       self.interactionPoints = vtk.vtkPoints()
       self.auxTransformArray[:] = np.zeros(self.auxTransformArray.shape)
       self.auxTransformNode.Modified()

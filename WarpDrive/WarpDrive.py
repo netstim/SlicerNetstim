@@ -379,14 +379,6 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if self._parameterNode.GetParameter("subjectPath") != '':
       LeadDBSCall.saveCurrentScene(self._parameterNode.GetParameter("subjectPath"))
 
-    # unset current warp
-    self._parameterNode.GetNodeReference("InputNode").SetAndObserveTransformNodeID(None)
-
-    # preview
-    visualizationNodes = self.logic.previewWarp(sourceFiducial, targetFiducial)
-    qt.QApplication.processEvents()
-
-    # run
     self._parameterNode.SetParameter("Running", "true")
     cliNode = self.logic.run(auxVolumeNode, outputNode, sourceFiducial, targetFiducial, RBFRadius, stiffness)
 
@@ -395,15 +387,12 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.ui.landwarpWidget.setCurrentCommandLineModuleNode(cliNode)
       # add observer
       cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, \
-        lambda c,e,o=outputNode,v=visualizationNodes,a=auxVolumeNode: self.onStatusModifiedEvent(c,o,v,a))
+        lambda c,e,o=outputNode,a=auxVolumeNode: self.onStatusModifiedEvent(c,o,a))
     else:
-      self.onStatusModifiedEvent(None,outputNode,visualizationNodes,auxVolumeNode)
-
-    # cursor
-    qt.QApplication.setOverrideCursor(qt.Qt.ArrowCursor)
+      self.onStatusModifiedEvent(None,outputNode,auxVolumeNode)
     
   
-  def onStatusModifiedEvent(self, caller, outputNode, visualizationNodes, auxVolumeNode):
+  def onStatusModifiedEvent(self, caller, outputNode, auxVolumeNode):
     
     if isinstance(caller, slicer.vtkMRMLCommandLineModuleNode):
       if caller.GetStatusString() == 'Completed':
@@ -412,19 +401,15 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       else:
         return
 
-    # set new warp
     self._parameterNode.GetNodeReference("InputNode").SetAndObserveTransformNodeID(outputNode.GetID())
     self._parameterNode.GetNodeReference("InputNode").Modified()
 
-    # remove aux
-    for node in visualizationNodes:
-      slicer.mrmlScene.RemoveNode(node)
     slicer.mrmlScene.RemoveNode(auxVolumeNode)
 
-    # set parameter
+    qt.QApplication.setOverrideCursor(qt.Qt.ArrowCursor)
+
     self._parameterNode.SetParameter("Running", "false")
 
-      
 
 
 #
