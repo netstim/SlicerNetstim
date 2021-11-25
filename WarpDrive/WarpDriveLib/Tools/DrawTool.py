@@ -148,7 +148,7 @@ class DrawToolEffect(AbstractDrawEffect):
     fiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
     fiducial.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
     fiducial.GetDisplayNode().SetVisibility(0)
-    fiducial.GetDisplayNode().SetTextScale(0)
+    fiducial.GetDisplayNode().SetPointLabelsVisibility(0)
     points = vtk.vtkPoints()
     curve.GetControlPointPositionsWorld(points)
     fiducial.SetControlPointPositionsWorld(points)

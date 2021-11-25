@@ -1,7 +1,8 @@
 import os
 import qt, vtk, slicer
+from PythonQt import BoolResult
 from slicer.util import VTKObservationMixin
-import WarpDrive
+import WarpDrive, ImportAtlas
 
 
 class TextEditDelegate(qt.QItemDelegate):
@@ -66,48 +67,21 @@ class firstColumnCheckableModel(qt.QStandardItemModel):
       self.updateSelectedFuntion(controlPointName, args[1])
     qt.QStandardItemModel.setData(self , *args, **kwargs)
 
-class WarpDriveCorrectionsTable(qt.QWidget):
 
+class baseTable(qt.QWidget):
 
-  def __init__(self, parent):
+  def __init__(self):
     super().__init__()
-
-    effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'SlicerVisible.png'))
-    effectIcon = qt.QIcon(effectPixmap)
-    self.sourceVisibleButton = qt.QToolButton()
-    self.sourceVisibleButton.setToolButtonStyle(qt.Qt.ToolButtonTextUnderIcon)
-    self.sourceVisibleButton.setIcon(effectIcon)
-    self.sourceVisibleButton.setText('Source')
-    self.sourceVisibleButton.setToolTip('Toggle source fiducials visibility')
-    self.sourceVisibleButton.setIconSize(effectPixmap.rect().size())
-    self.sourceVisibleButton.setCheckable(True)
-    self.sourceVisibleButton.setChecked(False)
-    self.sourceVisibleButton.setEnabled(True)
-    self.sourceVisibleButton.setSizePolicy(qt.QSizePolicy.MinimumExpanding,qt.QSizePolicy.Maximum)
-
-    effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'SlicerVisible.png'))
-    effectIcon = qt.QIcon(effectPixmap)
-    self.targetVisibleButton = qt.QToolButton()
-    self.targetVisibleButton.setToolButtonStyle(qt.Qt.ToolButtonTextUnderIcon)
-    self.targetVisibleButton.setIcon(effectIcon)
-    self.targetVisibleButton.setText('Target')
-    self.targetVisibleButton.setToolTip('Toggle target fiducials visibility')
-    self.targetVisibleButton.setIconSize(effectPixmap.rect().size())
-    self.targetVisibleButton.setCheckable(True)
-    self.targetVisibleButton.setChecked(False)
-    self.targetVisibleButton.setEnabled(True)
-    self.targetVisibleButton.setSizePolicy(qt.QSizePolicy.MinimumExpanding,qt.QSizePolicy.Maximum)
 
     effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'Add.png'))
     effectIcon = qt.QIcon(effectPixmap)
-    self.addFixedPointButton = qt.QToolButton()
-    self.addFixedPointButton.setToolButtonStyle(qt.Qt.ToolButtonTextUnderIcon)
-    self.addFixedPointButton.setIcon(effectIcon)
-    self.addFixedPointButton.setText('Fixed point')
-    self.addFixedPointButton.setToolTip('Add fixed point')
-    self.addFixedPointButton.setIconSize(effectPixmap.rect().size())
-    self.addFixedPointButton.setEnabled(True)
-    self.addFixedPointButton.setSizePolicy(qt.QSizePolicy.MinimumExpanding,qt.QSizePolicy.Maximum)
+    self.addButton = qt.QToolButton()
+    self.addButton.setToolButtonStyle(qt.Qt.ToolButtonTextUnderIcon)
+    self.addButton.setIcon(effectIcon)
+    self.addButton.setIconSize(effectPixmap.rect().size())
+    self.addButton.setEnabled(True)
+    self.addButton.setSizePolicy(qt.QSizePolicy.MinimumExpanding,qt.QSizePolicy.Maximum)
+    self.addButton.clicked.connect(self.onAddButton)
 
     effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'Delete.png'))
     effectIcon = qt.QIcon(effectPixmap)
@@ -115,22 +89,79 @@ class WarpDriveCorrectionsTable(qt.QWidget):
     self.removeButton.setToolButtonStyle(qt.Qt.ToolButtonTextUnderIcon)
     self.removeButton.setIcon(effectIcon)
     self.removeButton.setText('Delete')
-    self.removeButton.setToolTip('Delete selected correction')
     self.removeButton.setIconSize(effectPixmap.rect().size())
     self.removeButton.setEnabled(True)
     self.removeButton.setSizePolicy(qt.QSizePolicy.MinimumExpanding,qt.QSizePolicy.Maximum)
+    self.removeButton.clicked.connect(self.onRemoveButton)
 
     self.buttonsFrame = qt.QFrame()
     self.buttonsFrame.setSizePolicy(qt.QSizePolicy.Preferred, qt.QSizePolicy.Minimum)
     self.buttonsFrame.setLayout(qt.QHBoxLayout())
-    self.buttonsFrame.layout().addWidget(self.sourceVisibleButton)
-    self.buttonsFrame.layout().addWidget(self.targetVisibleButton)
-    self.buttonsFrame.layout().addWidget(self.addFixedPointButton)
-    self.buttonsFrame.layout().addWidget(self.removeButton)
+    self.buttonsFrame.layout().addWidget(self.addButton,1)
+    self.buttonsFrame.layout().addWidget(self.removeButton,1)
+
+    layout = qt.QVBoxLayout(self)
+    layout.addWidget(self.buttonsFrame)
+    layout.addWidget(self.view)
+  
+  def onAddButton(self):
+    pass
+
+  def onRemoveButton(self):
+    pass
+
+class AtlasesTable(baseTable):
+
+  def __init__(self):
+
+    self.view = slicer.qMRMLSubjectHierarchyTreeView(slicer.util.mainWindow())
+    self.view.setMRMLScene(slicer.mrmlScene)
+    self.view.contextMenuEnabled = False
+    self.view.setEditTriggers(0) # disable double click to edit
+    self.view.nodeTypes = ('vtkMRMLModelNode','vtkMRMLFolderDisplayNode')
+    self.view.attributeNameFilter = ('atlas')
+    for key in ['idColumn', 'transformColumn', 'descriptionColumn']:
+      self.view.setColumnHidden(eval('self.view.model().'+key), True)
+
+    super().__init__()
+
+    self.addButton.setText('Atlas')
+    self.addButton.setToolTip('Add atlas')
+
+    self.buttonsFrame.layout().addStretch(2)
+
+  def onAddButton(self):
+    leadDBSPath = slicer.util.settingsValue("NetstimPreferences/leadDBSPath", "", converter=str)
+    if leadDBSPath is "":
+      qt.QMessageBox().warning(qt.QWidget(), "", "Add Lead-DBS path to Slicer preferences")
+      return
+    validAtlasesNames = ImportAtlas.ImportAtlasLogic().getValidAtlases()
+    if not validAtlasesNames:
+      return
+    result = BoolResult()
+    atlasName = qt.QInputDialog.getItem(qt.QWidget(),'Select Atlas','',validAtlasesNames,0,0,result) 
+    if result:
+      qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
+      qt.QApplication.processEvents()
+      try:
+        ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(leadDBSPath, 'templates', 'space', 'MNI_ICBM_2009b_NLIN_ASYM', 'atlases', atlasName, 'atlas_index.mat'))    
+      finally:
+        qt.QApplication.restoreOverrideCursor()
+      # reset the attribute filter so the tree is updated
+      currentValue = self.view.attributeNameFilter
+      self.view.attributeNameFilter = ('')
+      self.view.attributeNameFilter = currentValue
+
+
+
+class WarpDriveCorrectionsTable(baseTable):
+
+
+  def __init__(self):
 
     columnNames = ["Include", "Name", "Radius"]
     self.model = firstColumnCheckableModel(1, len(columnNames))
-    self.model.updateSelectedFuntion = parent.updateSelected
+    self.model.updateSelectedFuntion = self.updateSelected
     for i, columnName in enumerate(columnNames):
       self.model.setHeaderData(i, qt.Qt.Horizontal, columnName)
 
@@ -141,42 +172,73 @@ class WarpDriveCorrectionsTable(qt.QWidget):
     self.view.horizontalHeader().setStretchLastSection(True)
     self.view.setHorizontalScrollMode(self.view.ScrollPerPixel)
     self.view.setModel(self.model)
-    
-    self.view.setItemDelegateForColumn(1, TextEditDelegate(self.model, parent.renameControlPoints))
-    self.view.setItemDelegateForColumn(2, SpinBoxDelegate(self.model, parent.updateRadius))
+    self.view.selectionModel().selectionChanged.connect(self.onSelectionChanged)
 
-    layout = qt.QVBoxLayout(self)
-    layout.addWidget(self.buttonsFrame)
-    layout.addWidget(self.view)
+    self.view.setItemDelegateForColumn(1, TextEditDelegate(self.model, self.renameControlPoints))
+    self.view.setItemDelegateForColumn(2, SpinBoxDelegate(self.model, self.updateRadius))
+
+    super().__init__()
+
+    effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'SlicerVisible.png'))
+    effectIcon = qt.QIcon(effectPixmap)
+    self.sourceVisibleButton = qt.QToolButton()
+    self.sourceVisibleButton.setToolButtonStyle(qt.Qt.ToolButtonTextUnderIcon)
+    self.sourceVisibleButton.setIcon(effectIcon)
+    self.sourceVisibleButton.setIconSize(effectPixmap.rect().size())
+    self.sourceVisibleButton.setText('Source')
+    self.sourceVisibleButton.setToolTip('Toggle source fiducials visibility')
+    self.sourceVisibleButton.setCheckable(True)
+    self.sourceVisibleButton.setChecked(False)
+    self.sourceVisibleButton.setEnabled(True)
+    self.sourceVisibleButton.setSizePolicy(qt.QSizePolicy.MinimumExpanding,qt.QSizePolicy.Maximum)
+    self.sourceVisibleButton.toggled.connect(self.onSourceVisibleToggled)
+    
+    effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'SlicerVisible.png'))
+    effectIcon = qt.QIcon(effectPixmap)
+    self.targetVisibleButton = qt.QToolButton()
+    self.targetVisibleButton.setToolButtonStyle(qt.Qt.ToolButtonTextUnderIcon)
+    self.targetVisibleButton.setIcon(effectIcon)
+    self.targetVisibleButton.setIconSize(effectPixmap.rect().size())
+    self.targetVisibleButton.setText('Target')
+    self.targetVisibleButton.setToolTip('Toggle target fiducials visibility')    
+    self.targetVisibleButton.setCheckable(True)
+    self.targetVisibleButton.setChecked(False)
+    self.targetVisibleButton.setEnabled(True)
+    self.targetVisibleButton.setSizePolicy(qt.QSizePolicy.MinimumExpanding,qt.QSizePolicy.Maximum)
+    self.targetVisibleButton.toggled.connect(self.onTargetVisibleToggled)
+
+    self.buttonsFrame.layout().addWidget(self.sourceVisibleButton,1)
+    self.buttonsFrame.layout().addWidget(self.targetVisibleButton,1)
+
+    self.addButton.setText('Fixed point')
+    self.addButton.setToolTip('Add fixed point')
   
+  def onSourceVisibleToggled(self):
+    pass
+
+  def onTargetVisibleToggled(self):
+    pass
+
+  def onSelectionChanged(self):
+    pass
 
   def clearTable(self):
     while self.model.rowCount() > 0:
       self.model.removeRow(self.model.rowCount()-1)
-
-  def onAddButton(self):
-    pass
 
   def getSelectedRow(self):
     selectedRows = self.view.selectionModel().selectedRows()
     for selectedRow in selectedRows:
       return selectedRow.row() # is a single selection view
 
-  def onSelectionChanged(self, selection):
-    pass
 
-class WarpDriveCorrectionsManager(VTKObservationMixin):
+class WarpDriveCorrectionsManager(VTKObservationMixin, WarpDriveCorrectionsTable):
   def __init__(self):
     VTKObservationMixin.__init__(self)
+    WarpDriveCorrectionsTable.__init__(self)
     self.sourceFiducialNodeID = ""
     self.targetFiducialNodeID = ""
     self._updatingFiducials = False
-    self.widget = WarpDriveCorrectionsTable(self)
-    self.widget.removeButton.clicked.connect(self.onRemoveButton)
-    self.widget.addFixedPointButton.clicked.connect(self.onAddFixedPointButton)
-    self.widget.view.selectionModel().selectionChanged.connect(self.onSelectionChanged)
-    self.widget.sourceVisibleButton.toggled.connect(self.onSourceVisibleToggled)
-    self.widget.targetVisibleButton.toggled.connect(self.onTargetVisibleToggled)
     self.targetFiducialObservers = []
     self.sourceFiducialObservers = []
     self.parameterNode = WarpDrive.WarpDriveLogic().getParameterNode()
@@ -185,14 +247,14 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
   def onSourceVisibleToggled(self):
     if self.sourceFiducialNodeID != "":
       sourceFiducialNode = slicer.mrmlScene.GetNodeByID(self.sourceFiducialNodeID)
-      sourceFiducialNode.GetDisplayNode().SetVisibility(self.widget.sourceVisibleButton.checked)
+      sourceFiducialNode.GetDisplayNode().SetVisibility(self.sourceVisibleButton.checked)
 
   def onTargetVisibleToggled(self):
     if self.targetFiducialNodeID != "":
       targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
-      targetFiducialNode.GetDisplayNode().SetVisibility(self.widget.targetVisibleButton.checked)
+      targetFiducialNode.GetDisplayNode().SetVisibility(self.targetVisibleButton.checked)
 
-  def onAddFixedPointButton(self):
+  def onAddButton(self):
     if self.targetFiducialNodeID == "":
       return
     interactionNode = slicer.app.applicationLogic().GetInteractionNode()
@@ -208,7 +270,7 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
       if previousNode and bool(self.sourceFiducialObservers):
         for obs in self.sourceFiducialObservers:
           previousNode.RemoveObserver(obs)
-      sourceFiducialNode.GetDisplayNode().SetTextScale(0)
+      sourceFiducialNode.GetDisplayNode().SetPointLabelsVisibility(0)
       sourceFiducialNode.GetDisplayNode().SetVisibility(0)
       self.sourceFiducialNodeID = sourceFiducialNode.GetID()
       self.sourceFiducialObservers.clear()
@@ -220,7 +282,7 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
       if previousNode and bool(self.targetFiducialObservers):
         for obs in self.targetFiducialObservers:
           previousNode.RemoveObserver(obs)
-      targetFiducialNode.GetDisplayNode().SetTextScale(0)
+      targetFiducialNode.GetDisplayNode().SetPointLabelsVisibility(0)
       self.targetFiducialNodeID = targetFiducialNode.GetID()
       self.targetFiducialObservers.clear()
       self.targetFiducialObservers.append(targetFiducialNode.AddObserver(slicer.vtkMRMLDisplayableNode.DisplayModifiedEvent, self.updateVisibilityWidget))
@@ -234,10 +296,10 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
   def updateVisibilityWidget(self, caller=None, event=None):
     if self.targetFiducialNodeID != "":
       targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
-      self.widget.targetVisibleButton.checked = targetFiducialNode.GetDisplayNode().GetVisibility()
+      self.targetVisibleButton.checked = targetFiducialNode.GetDisplayNode().GetVisibility()
     if self.sourceFiducialNodeID != "":
       sourceFiducialNode = slicer.mrmlScene.GetNodeByID(self.sourceFiducialNodeID)
-      self.widget.sourceVisibleButton.checked = sourceFiducialNode.GetDisplayNode().GetVisibility()
+      self.sourceVisibleButton.checked = sourceFiducialNode.GetDisplayNode().GetVisibility()
 
   def targetFiducialModified(self, caller, event):
     self.setUpWidget()
@@ -245,7 +307,7 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
   def setUpWidget(self):
     if self._updatingFiducials:
       return
-    self.widget.clearTable()
+    self.clearTable()
     targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
     newCorrection = {"include": False, "name": "", "radius":""}
     for i in range(targetFiducialNode.GetNumberOfControlPoints()):
@@ -262,17 +324,17 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
     if newCorrection["name"] == "":
       return
 
-    row = self.widget.model.rowCount()
-    self.widget.model.insertRow(row)
+    row = self.model.rowCount()
+    self.model.insertRow(row)
     for col,val in enumerate(newCorrection.values()):
-      index = self.widget.model.index(row, col)
+      index = self.model.index(row, col)
       if col == 0:
         val = qt.Qt.Checked if val else qt.Qt.Unchecked
         role = qt.Qt.CheckStateRole
       else:
         role = qt.Qt.DisplayRole
 
-      self.widget.model.setData(index, val, role)
+      self.model.setData(index, val, role)
 
   def onPointPositionDefined(self, caller, event):
     targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
@@ -288,11 +350,11 @@ class WarpDriveCorrectionsManager(VTKObservationMixin):
     self.parameterNode.SetParameter("Update","true")
 
   def getSelectedCorrectionName(self):
-    row = self.widget.getSelectedRow()
+    row = self.getSelectedRow()
     if row is None or self.targetFiducialNodeID=="":
       return
-    index = self.widget.model.index(row, 1)
-    return self.widget.model.itemData(index)[0]
+    index = self.model.index(row, 1)
+    return self.model.itemData(index)[0]
 
   def onRemoveButton(self):
     correctionName = self.getSelectedCorrectionName()

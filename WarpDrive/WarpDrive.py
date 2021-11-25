@@ -76,9 +76,11 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.drawModeMenu = toolWidgets[2].effectButton.menu()
 
     # Add Tree View
-    correctionsManager = CorrectionsTable.WarpDriveCorrectionsManager()
     correctionsLayout = qt.QVBoxLayout(self.ui.correctionsFrame)
-    correctionsLayout.addWidget(correctionsManager.widget)
+    correctionsLayout.addWidget(CorrectionsTable.WarpDriveCorrectionsManager())
+
+    atlasesLayout = qt.QVBoxLayout(self.ui.atlasesFrame)
+    atlasesLayout.addWidget(CorrectionsTable.AtlasesTable())
 
     # add cli progress bar
     self.ui.landwarpWidget = slicer.modules.fiducialregistrationvariablerbf.createNewWidgetRepresentation()
@@ -285,7 +287,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     self.ui.outputSelector.enabled = self._parameterNode.GetNodeReference("InputNode")
     self.ui.toolsCollapsibleButton.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
-    self.ui.correctionsCollapsibleButton.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
+    self.ui.tabWidget.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
     self.ui.outputCollapsibleButton.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
     self.ui.calculateButton.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
 
