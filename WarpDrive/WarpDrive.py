@@ -379,6 +379,10 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if self._parameterNode.GetParameter("subjectPath") != '':
       LeadDBSCall.saveCurrentScene(self._parameterNode.GetParameter("subjectPath"))
 
+    # preview
+    visualizationNodes = self.logic.previewWarp(sourceFiducial, targetFiducial)
+    qt.QApplication.processEvents()
+
     self._parameterNode.SetParameter("Running", "true")
     cliNode = self.logic.run(auxVolumeNode, outputNode, sourceFiducial, targetFiducial, RBFRadius, stiffness)
 
@@ -387,12 +391,12 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.ui.landwarpWidget.setCurrentCommandLineModuleNode(cliNode)
       # add observer
       cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, \
-        lambda c,e,o=outputNode,a=auxVolumeNode: self.onStatusModifiedEvent(c,o,a))
+        lambda c,e,o=outputNode,v=visualizationNodes,a=auxVolumeNode: self.onStatusModifiedEvent(c,o,v,a))
     else:
-      self.onStatusModifiedEvent(None,outputNode,auxVolumeNode)
+      self.onStatusModifiedEvent(None,outputNode,visualizationNodes,auxVolumeNode)
     
   
-  def onStatusModifiedEvent(self, caller, outputNode, auxVolumeNode):
+  def onStatusModifiedEvent(self, caller, outputNode, visualizationNodes, auxVolumeNode):
     
     if isinstance(caller, slicer.vtkMRMLCommandLineModuleNode):
       if caller.GetStatusString() == 'Completed':
@@ -404,6 +408,9 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._parameterNode.GetNodeReference("InputNode").SetAndObserveTransformNodeID(outputNode.GetID())
     self._parameterNode.GetNodeReference("InputNode").Modified()
 
+    # remove aux
+    for node in visualizationNodes:
+      slicer.mrmlScene.RemoveNode(node)
     slicer.mrmlScene.RemoveNode(auxVolumeNode)
 
     qt.QApplication.setOverrideCursor(qt.Qt.ArrowCursor)
@@ -487,6 +494,36 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
     cliNode = slicer.cli.run(slicer.modules.fiducialregistrationvariablerbf, None, cliParams, wait_for_completion=False, update_display=False)
 
     return cliNode
+
+  def previewWarp(self, source, target):
+    if isinstance(source, slicer.vtkMRMLMarkupsFiducialNode) and isinstance(target, slicer.vtkMRMLMarkupsFiducialNode):
+      sourcePoints = vtk.vtkPoints()
+      targetPoints = vtk.vtkPoints()
+      for i in range(target.GetNumberOfControlPoints()):
+        if target.GetNthControlPointSelected(i):
+          sourcePoints.InsertNextPoint(source.GetNthControlPointPosition(i))
+          targetPoints.InsertNextPoint(target.GetNthControlPointPosition(i))
+    else:
+      sourcePoints = source
+      targetPoints = target
+    sourceDisplayFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    sourceDisplayFiducial.GetDisplayNode().SetVisibility(0)
+    sourceDisplayFiducial.SetControlPointPositionsWorld(sourcePoints)
+    # thin plate
+    transform=vtk.vtkThinPlateSplineTransform()
+    transform.SetSourceLandmarks(sourcePoints)
+    transform.SetTargetLandmarks(targetPoints)
+    transform.SetBasisToR()
+    transform.Inverse()
+    transformNode=slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
+    transformNode.SetAndObserveTransformFromParent(transform)
+    # display
+    transformNode.CreateDefaultDisplayNodes()
+    transformNode.GetDisplayNode().SetVisibility(1)
+    transformNode.GetDisplayNode().SetVisibility3D(0)
+    transformNode.GetDisplayNode().SetAndObserveGlyphPointsNode(sourceDisplayFiducial)
+    transformNode.GetDisplayNode().SetVisibility2D(1)
+    return transformNode, sourceDisplayFiducial
 
 
 #

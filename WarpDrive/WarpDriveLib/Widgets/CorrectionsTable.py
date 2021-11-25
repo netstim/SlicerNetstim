@@ -454,24 +454,6 @@ class WarpDriveCorrectionsManager(VTKObservationMixin, WarpDriveCorrectionsTable
           jumped = True
         sourcePoints.InsertNextPoint(sourceFiducialNode.GetNthControlPointPosition(i))
         targetPoints.InsertNextPoint(targetFiducialNode.GetNthControlPointPosition(i))        
-    # fiducial
-    sourceDisplayFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
-    sourceDisplayFiducial.GetDisplayNode().SetVisibility(0)
-    sourceDisplayFiducial.SetControlPointPositionsWorld(sourcePoints)
-    # thin plate
-    transform=vtk.vtkThinPlateSplineTransform()
-    transform.SetSourceLandmarks(sourcePoints)
-    transform.SetTargetLandmarks(targetPoints)
-    transform.SetBasisToR()
-    transform.Inverse()
-    transformNode=slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
-    transformNode.SetAndObserveTransformFromParent(transform)
-    # display
-    transformNode.CreateDefaultDisplayNodes()
-    transformNode.GetDisplayNode().SetVisibility(1)
-    transformNode.GetDisplayNode().SetVisibility3D(0)
-    transformNode.GetDisplayNode().SetAndObserveGlyphPointsNode(sourceDisplayFiducial)
-    transformNode.GetDisplayNode().SetVisibility2D(1)
-    # delete
-    qt.QTimer.singleShot(1000, lambda: slicer.mrmlScene.RemoveNode(transformNode))
-    qt.QTimer.singleShot(1000, lambda: slicer.mrmlScene.RemoveNode(sourceDisplayFiducial))
+    tmpNodes = WarpDrive.WarpDriveLogic().previewWarp(sourcePoints, targetPoints)
+    for n in tmpNodes:
+      qt.QTimer.singleShot(1000, lambda node=n: slicer.mrmlScene.RemoveNode(node))
