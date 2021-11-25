@@ -202,6 +202,7 @@ class WarpDriveCorrectionsTable(baseTable):
     self.view.setSelectionMode(self.view.SingleSelection)
     self.view.setSelectionBehavior(self.view.SelectRows)
     self.view.horizontalHeader().setStretchLastSection(True)
+    self.view.verticalHeader().setDefaultSectionSize(self.view.verticalHeader().defaultSectionSize*3/4)
     self.view.setHorizontalScrollMode(self.view.ScrollPerPixel)
     self.view.setModel(self.model)
     self.view.clicked.connect(self.onSelectionChanged)
