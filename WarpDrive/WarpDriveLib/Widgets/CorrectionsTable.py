@@ -152,6 +152,16 @@ class AtlasesTable(baseTable):
       self.view.attributeNameFilter = ('')
       self.view.attributeNameFilter = currentValue
 
+  def onRemoveButton(self, node):
+    nodeID = self.view.currentItem()
+    if not nodeID:
+      return
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    removeIDs = vtk.vtkIdList()
+    shNode.GetItemChildren(nodeID, removeIDs, True)
+    removeIDs.InsertNextId(nodeID)
+    for i in range(removeIDs.GetNumberOfIds()):
+      shNode.RemoveItem(removeIDs.GetId(i))
 
 
 class WarpDriveCorrectionsTable(baseTable):
