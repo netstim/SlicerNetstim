@@ -20,7 +20,7 @@ set(MODULE_PYTHON_SCRIPTS
   WarpDriveLib/Tools/__init__.py
   WarpDriveLib/Widgets/Toolbar.py
   WarpDriveLib/Widgets/ToolWidget.py
-  WarpDriveLib/Widgets/CorrectionsTable.py
+  WarpDriveLib/Widgets/Tables.py
   WarpDriveLib/Widgets/__init__.py
   WarpDriveLib/__init__.py
   )

@@ -9,7 +9,7 @@ import numpy as np
 
 from WarpDriveLib.Tools import NoneTool, SmudgeTool, DrawTool, PointToPointTool
 from WarpDriveLib.Helpers import GridNodeHelper, LeadDBSCall
-from WarpDriveLib.Widgets import CorrectionsTable, Toolbar
+from WarpDriveLib.Widgets import Tables, Toolbar
 
 #
 # WarpDrive
@@ -77,10 +77,10 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # Add Tree View
     correctionsLayout = qt.QVBoxLayout(self.ui.correctionsFrame)
-    correctionsLayout.addWidget(CorrectionsTable.WarpDriveCorrectionsManager())
+    correctionsLayout.addWidget(Tables.WarpDriveCorrectionsManager())
 
     atlasesLayout = qt.QVBoxLayout(self.ui.atlasesFrame)
-    atlasesLayout.addWidget(CorrectionsTable.AtlasesTable())
+    atlasesLayout.addWidget(Tables.AtlasesTable())
 
     # add cli progress bar
     self.ui.landwarpWidget = slicer.modules.fiducialregistrationvariablerbf.createNewWidgetRepresentation()
