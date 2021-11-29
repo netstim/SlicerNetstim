@@ -198,7 +198,7 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("ImageNode"))
     slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("TemplateNode"))
     # initialize new image and init
-    imageNode = slicer.util.loadVolume(LeadDBSCall.LeadBIDS(self.parameterNode.GetParameter("subjectPath")).getCoregImages(modality)[0], properties={'show':False})
+    imageNode = slicer.util.loadVolume(LeadDBSCall.LeadFileManager(self.parameterNode.GetParameter("subjectPath")).getCoregImages(modality)[0], properties={'show':False})
     imageNode.SetAndObserveTransformNodeID(self.parameterNode.GetNodeReferenceID("InputNode"))    
     # change to t1 in case modality not present
     modality = re.search(r"[^w]+", modality)[0].lower()
@@ -281,7 +281,7 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
 
   def getAvailableModalities(self, directory):
     modalities = []
-    fileNames = LeadDBSCall.LeadBIDS(directory).getCoregImages()
+    fileNames = LeadDBSCall.LeadFileManager(directory).getCoregImages()
     for fileName in fileNames:
       fileName = os.path.split(fileName)[-1] # remove directory
       fileName = os.path.splitext(fileName)[0] # remove extension

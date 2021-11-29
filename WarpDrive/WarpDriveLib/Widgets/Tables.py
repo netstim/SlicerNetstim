@@ -146,7 +146,7 @@ class AtlasesTable(baseTable):
       qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
       qt.QApplication.processEvents()
       try:
-        ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(leadDBSPath, 'templates', 'space', 'MNI_ICBM_2009b_NLIN_ASYM', 'atlases', atlasName, 'atlas_index.mat'))    
+        ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(ImportAtlas.ImportAtlasLogic().getAtlasesPath(), atlasName, 'atlas_index.mat'))    
       finally:
         qt.QApplication.restoreOverrideCursor()
       # reset the attribute filter so the tree is updated
