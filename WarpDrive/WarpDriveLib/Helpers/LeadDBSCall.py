@@ -1,6 +1,5 @@
 import vtk, qt, slicer
 import os, sys, shutil
-import uuid
 from scipy import io
 import numpy as np
 from subprocess import call
@@ -23,38 +22,6 @@ def checkExtensionInstall(extensionName):
     slicer.util.exit()
     return True
 
-def updateParameterNodeFromArgs(parameterNode): 
-  if parameterNode.GetParameter("MNIPath") != '':
-    return # was already called
-
-  args = sys.argv
-  if (len(sys.argv) > 2) and os.path.isfile(os.path.join(sys.argv[1],'lead.m')):
-    pathsSeparator = uuid.uuid4().hex
-    subjectPaths = pathsSeparator.join(sys.argv[2:])
-    subjectPath = subjectPaths.split(pathsSeparator)[0]
-    leadDBSPath = sys.argv[1]
-    slicer.app.settings().setValue("NetstimPreferences/leadDBSPath", leadDBSPath)
-    MNIAtlasPath = ImportAtlas.ImportAtlasLogic().getAtlasesPath()
-    MNIPath = os.path.dirname(MNIAtlasPath)
-    if sys.platform == "darwin":
-      ext = "maci64"
-    elif sys.platform.startswith('win'):
-      ext = 'exe'
-    else:
-      ext = 'glnxa64'
-    antsApplyTransformsPath = os.path.join(leadDBSPath,'ext_libs','ANTs','antsApplyTransforms.' + ext)
-    # set parameter node
-    parameterNode.SetParameter("separator", pathsSeparator)
-    parameterNode.SetParameter("subjectPaths", subjectPaths)
-    parameterNode.SetParameter("subjectN", "0")
-    parameterNode.SetParameter("subjectPath", subjectPath)
-    parameterNode.SetParameter("MNIPath", MNIPath)
-    parameterNode.SetParameter("MNIAtlasPath", MNIAtlasPath)
-    parameterNode.SetParameter("antsApplyTransformsPath", antsApplyTransformsPath)
-    parameterNode.SetNodeReferenceID("ImageNode", None)
-    parameterNode.SetNodeReferenceID("TemplateNode", None)
-    return True
-
 class LeadFileManager():
   def __init__(self, subjectPath):
     self.subjectPath = subjectPath
@@ -69,9 +36,11 @@ class LeadFileManager():
 
   def getCoregImages(self, modality='*'):
     if self.useBIDS:
-      return glob.glob(os.path.join(self.subjectPath, 'coregistration', 'anat', self.subjectID + '*ses-preop_' + modality + '.nii'))
+      modality = self.subjectID + '*ses-preop_' + modality if modality == '*' else modality
+      return glob.glob(os.path.join(self.subjectPath, 'coregistration', 'anat', modality + '.nii'))
     else:
-      return glob.glon(os.path.join(self.subjectPath, 'anat_*.nii'))
+      modality = 'anat_' + modality if modality == '*' else modality
+      return glob.glob(os.path.join(self.subjectPath, modality + '.nii'))
 
   def getNormalizedImages(self):
     if self.useBIDS:
@@ -258,30 +227,35 @@ def setTargetFiducialsAsFixed():
       # change fixed point name
       fiducialNode.SetName(parentFolderName)
 
-def saveCurrentScene(subjectPath):
+def saveSourceTarget(subjectPath, sourceNode, targetNode):
   """
-  Save corrections and fixed points is subject directory so will be loaded next time
+  Save source and target in subject directory so will be loaded next time
   """
   warpDriveSavePath = LeadFileManager(subjectPath).getWarpDrivePath()
-  # delete previous
-  if os.path.isdir(warpDriveSavePath):
-    shutil.rmtree(warpDriveSavePath)
-  # create directories
-  os.mkdir(warpDriveSavePath)
-  os.mkdir(os.path.join(warpDriveSavePath,'Data'))
-  # set scene URL
-  slicer.mrmlScene.SetURL(os.path.join(warpDriveSavePath, 'WarpDriveScene.mrml'))
-  # save corrections
+  if not os.path.isdir(warpDriveSavePath):
+    os.mkdir(warpDriveSavePath)  
+  slicer.util.saveNode(sourceNode, os.path.join(warpDriveSavePath, 'source.json'))
+  slicer.util.saveNode(targetNode, os.path.join(warpDriveSavePath, 'target.json'))
+
+def getAtlasesNamesInScene():
   shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-  for nodeType, nodeExt in zip(['vtkMRMLMarkupsFiducialNode', 'vtkMRMLLabelMapVolumeNode'], ['.fcsv', '.nrrd']):
-    nodes = slicer.mrmlScene.GetNodesByClass(nodeType)
-    nodes.UnRegister(slicer.mrmlScene)
-    for i in range(nodes.GetNumberOfItems()):
-      node = nodes.GetItemAsObject(i)
-      if 'correction' in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(node)):
-        slicer.util.saveNode(node, os.path.join(warpDriveSavePath, 'Data', uuid.uuid4().hex + nodeExt))
-  # save scene
-  slicer.mrmlScene.Commit()
+  folderNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLFolderDisplayNode')
+  folderNodes.UnRegister(slicer.mrmlScene)
+  names = []
+  for i in range(folderNodes.GetNumberOfItems()):
+    folderNode = folderNodes.GetItemAsObject(i)
+    if 'atlas' in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(folderNode)):
+      if  shNode.GetItemParent(shNode.GetItemByDataNode(folderNode)) == shNode.GetSceneItemID():
+        names.append(folderNode.GetName())
+  return names
+
+def saveSceneInfo(subjectPath):
+  warpDriveSavePath = LeadFileManager(subjectPath).getWarpDrivePath()
+  info = {}
+  info["atlasNames"] = getAtlasesNamesInScene()
+  with open(os.path.join(warpDriveSavePath,'info.json'), 'w') as jsonFile:
+    json.dump(info, jsonFile)
+
 
 def DeleteCorrections():
   shNode = slicer.mrmlScene.GetSubjectHierarchyNode()

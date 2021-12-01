@@ -1,7 +1,7 @@
 import qt, vtk, slicer
 from qt import QToolBar
 import os
-import itertools
+import json
 from slicer.util import VTKObservationMixin
 import glob
 import re
@@ -92,104 +92,45 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
 
 
   def initSubject(self):
-    if os.path.isfile(os.path.join(self.parameterNode.GetParameter("subjectPath"),'WarpDrive','WarpDriveScene.mrml')):
-      self.initFromScene()
-    else:
-      self.initFromRaw()
-    
-    self.onModalityPressed([],self.modalityComboBox.currentText)
-
-    # load default atlas if there is none in scene
-    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-    folderNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLFolderDisplayNode')
-    folderNodes.UnRegister(slicer.mrmlScene)
-    for i in range(folderNodes.GetNumberOfItems()):
-      folderNode = folderNodes.GetItemAsObject(i)
-      if 'atlas' in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(folderNode)):
-        return
-    ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(self.parameterNode.GetParameter("MNIAtlasPath"), 'DISTAL Minimal (Ewert 2017)', 'atlas_index.mat'))
-
-
-  def initFromRaw(self):
+    subjectPath = self.parameterNode.GetParameter("subjectPath")
+    subjectWarpDrivePath = LeadDBSCall.LeadFileManager(subjectPath).getWarpDrivePath()
     # set up transform
-    inputNode = LeadDBSCall.loadSubjectTransform(self.parameterNode.GetParameter("subjectPath"), self.parameterNode.GetParameter("antsApplyTransformsPath"))
+    inputNode = LeadDBSCall.loadSubjectTransform(subjectPath, self.parameterNode.GetParameter("antsApplyTransformsPath"))
     outputNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLGridTransformNode')
     inputNode.SetAndObserveTransformNodeID(outputNode.GetID())
+
+    if os.path.isfile(os.path.join(subjectWarpDrivePath,'target.json')):
+      targetFiducial = slicer.util.loadMarkups(os.path.join(subjectWarpDrivePath,'target.json'))
+      sourceFiducial = slicer.util.loadMarkups(os.path.join(subjectWarpDrivePath,'source.json'))
+    else:
+      targetFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+      sourceFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+
     # parameter node
     self.parameterNode.SetNodeReferenceID("InputNode", inputNode.GetID())
     self.parameterNode.SetNodeReferenceID("OutputGridTransform", outputNode.GetID())
+    self.parameterNode.SetNodeReferenceID("SourceFiducial", sourceFiducial.GetID())
+    self.parameterNode.SetNodeReferenceID("TargetFiducial", targetFiducial.GetID())
+    
+    self.onModalityPressed([],self.modalityComboBox.currentText)
 
-  def initFromScene(self):
+    jsonFileName = os.path.join(subjectWarpDrivePath,'info.json')
+    if os.path.isfile(jsonFileName):
+      with open(jsonFileName, 'r') as jsonFile:
+        info = json.load(jsonFile)
+    else:
+      info = {"atlasNames": []}
+    atlasNames = info["atlasNames"] if info["atlasNames"] != [] else ['DISTAL Minimal (Ewert 2017)']
+    # load atlas if not already in scene
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-    subjectPaths = self.parameterNode.GetParameter("subjectPaths")
-    subjectPath = self.parameterNode.GetParameter("subjectPath")
-    subjectPathSep = self.parameterNode.GetParameter("separator")
-    MNIPath = self.parameterNode.GetParameter("MNIPath")
-    MNIAtlasPath = self.parameterNode.GetParameter("MNIAtlasPath")
-    antsApplyTransformsPath = self.parameterNode.GetParameter("antsApplyTransformsPath")
-
-    # load previous scene
-    try:
-      slicer.util.loadScene(os.path.join(self.parameterNode.GetParameter("subjectPath"),'warpdrive','WarpDriveScene.mrml'))
-    except:
-      pass
-
-    # restore parameters
-    self.parameterNode.SetParameter("subjectPaths", subjectPaths)
-    self.parameterNode.SetParameter("subjectPath", subjectPath)
-    self.parameterNode.SetParameter("separator", subjectPathSep)
-    self.parameterNode.SetParameter("MNIPath", MNIPath)
-    self.parameterNode.SetParameter("MNIAtlasPath", MNIAtlasPath)
-    self.parameterNode.SetParameter("antsApplyTransformsPath", antsApplyTransformsPath)
-
-    # set input node
-    gridTransformNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLGridTransformNode')
-    gridTransformNodes.UnRegister(slicer.mrmlScene)
-    for i in range(gridTransformNodes.GetNumberOfItems()):
-      gridTransformNode = gridTransformNodes.GetItemAsObject(i)
-      if gridTransformNode.GetID() != self.parameterNode.GetNodeReferenceID("InputNode"):
-        slicer.mrmlScene.RemoveNode(gridTransformNode)
-    # set image and template
-    volumeNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLVolumeNode')
-    volumeNodes.UnRegister(slicer.mrmlScene)
-    for i in range(volumeNodes.GetNumberOfItems()):
-      volumeNode = volumeNodes.GetItemAsObject(i)
-      if 'correction' not in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(volumeNode)):
-        slicer.mrmlScene.RemoveNode(volumeNode)
-    # get atlas name and delete folders
-    atlasName = None
     folderNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLFolderDisplayNode')
     folderNodes.UnRegister(slicer.mrmlScene)
     for i in range(folderNodes.GetNumberOfItems()):
       folderNode = folderNodes.GetItemAsObject(i)
-      if 'atlas' in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(folderNode)):
-        if  atlasName is None and (shNode.GetItemParent(shNode.GetItemByDataNode(folderNode)) == shNode.GetSceneItemID()):
-          atlasName = folderNode.GetName()
-        slicer.mrmlScene.RemoveNode(folderNode)
-    # delete models
-    modelNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLModelNode')
-    modelNodes.UnRegister(slicer.mrmlScene)
-    for i in range(modelNodes.GetNumberOfItems()):
-      slicer.mrmlScene.RemoveNode(modelNodes.GetItemAsObject(i))
-    # delete fiducials
-    fiducialNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLMarkupsFiducialNode')
-    fiducialNodes.UnRegister(slicer.mrmlScene)
-    for i in range(fiducialNodes.GetNumberOfItems()):
-      fiducialNode = fiducialNodes.GetItemAsObject(i)
-      if 'correction' not in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(fiducialNode)):
-        slicer.mrmlScene.RemoveNode(fiducialNode)
-
-    # load atlas
-    if atlasName is not None and os.path.isdir(os.path.join(self.parameterNode.GetParameter("MNIAtlasPath"), atlasName)):
-      ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(self.parameterNode.GetParameter("MNIAtlasPath"), atlasName, 'atlas_index.mat'))
-
-    # init output
-    outputNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLGridTransformNode')
-    self.parameterNode.SetNodeReferenceID("OutputGridTransform", outputNode.GetID())
-
-    # in case one not set
-    WarpDrive.WarpDriveLogic().setDefaultParameters(self.parameterNode)
-
+      if ('atlas' in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(folderNode))) and (folderNode.GetName() in atlasNames):
+        atlasNames.pop(atlasNames.index(folderNode.GetName()))
+    for name in atlasNames:
+      ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(self.parameterNode.GetParameter("MNIAtlasPath"), name, 'atlas_index.mat'))
 
   def onModalityPressed(self, item, modality=None):
     if modality is None:
@@ -201,8 +142,8 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     imageNode = slicer.util.loadVolume(LeadDBSCall.LeadFileManager(self.parameterNode.GetParameter("subjectPath")).getCoregImages(modality)[0], properties={'show':False})
     imageNode.SetAndObserveTransformNodeID(self.parameterNode.GetNodeReferenceID("InputNode"))    
     # change to t1 in case modality not present
-    modality = re.search(r"[^w]+", modality)[0].lower()
-    templateFile = glob.glob(os.path.join(self.parameterNode.GetParameter("MNIPath"), modality+ ".nii"))
+    mni_modality = re.search(r"\d", modality)[0].lower()
+    templateFile = glob.glob(os.path.join(self.parameterNode.GetParameter("MNIPath"), "t" + mni_modality+ ".nii"))
     if templateFile:
       templateFile = templateFile[0]
     else:
@@ -232,14 +173,15 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
   def onNextButton(self):
     ToolWidget.AbstractToolWidget.cleanEffects()
     subjectPath = self.parameterNode.GetParameter("subjectPath")
+    sourceFiducial = self.parameterNode.GetNodeReference("SourceFiducial")
+    targetFiducial = self.parameterNode.GetNodeReference("TargetFiducial")
 
-    if self.parameterNode.GetNodeReference("SourceFiducial").GetNumberOfPoints(): # corrections made
+    if self.parameterNode.GetNodeReference("SourceFiducial").GetNumberOfControlPoints(): # corrections made
       if self.hardenChangesCheckBox.checked:
         LeadDBSCall.applyChanges(subjectPath, self.parameterNode.GetNodeReference("InputNode"), self.parameterNode.GetNodeReference("ImageNode")) # save changes
-        LeadDBSCall.setTargetFiducialsAsFixed() # change target fiducial as fixed
-        LeadDBSCall.saveCurrentScene(subjectPath) # save scene
-      else:
-        LeadDBSCall.saveCurrentScene(subjectPath)
+        sourceFiducial.Copy(targetFiducial) # set all as fixed points
+      LeadDBSCall.saveSourceTarget(subjectPath, sourceFiducial, targetFiducial)
+      LeadDBSCall.saveSceneInfo(subjectPath)
     else:
       if not LeadDBSCall.queryUserApproveSubject(subjectPath):
         return # user canceled 
@@ -247,12 +189,12 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     # clean up
 
     # remove nodes
+    slicer.mrmlScene.RemoveNode(sourceFiducial)
+    slicer.mrmlScene.RemoveNode(targetFiducial)
     slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("InputNode"))
     slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("ImageNode"))
     slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("OutputGridTransform"))
     
-    LeadDBSCall.DeleteCorrections()
-
     # move to next subject
 
     nextSubjectN = int(self.parameterNode.GetParameter("subjectN"))+1
@@ -267,9 +209,6 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     else:
       slicer.util.exit()
 
-    # this sets parameter in case new scene loaded
-    slicer.util.moduleSelector().selectModule('Data')
-    slicer.util.moduleSelector().selectModule('WarpDrive')
 
   def updateModalities(self, subjectPath):
     currentModality = self.modalityComboBox.currentText
@@ -285,6 +224,6 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     for fileName in fileNames:
       fileName = os.path.split(fileName)[-1] # remove directory
       fileName = os.path.splitext(fileName)[0] # remove extension
-      modality = re.search(r"(?<=ses-preop_)\w+", fileName)[0]
-      modalities.append(modality)
+      # modality = re.search(r"(?<=ses-preop_)\w+", fileName)[0]
+      modalities.append(fileName)
     return modalities

@@ -79,8 +79,10 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     correctionsLayout = qt.QVBoxLayout(self.ui.correctionsFrame)
     correctionsLayout.addWidget(Tables.WarpDriveCorrectionsManager())
 
+    atlasesTable = Tables.AtlasesTable()
     atlasesLayout = qt.QVBoxLayout(self.ui.atlasesFrame)
-    atlasesLayout.addWidget(Tables.AtlasesTable())
+    atlasesLayout.addWidget(atlasesTable)
+    self.ui.tabWidget.currentChanged.connect(lambda i,a=atlasesTable: a.updateTable())
 
     # add cli progress bar
     self.ui.landwarpWidget = slicer.modules.fiducialregistrationvariablerbf.createNewWidgetRepresentation()
@@ -141,7 +143,9 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # customize mouse mode
     mouseModeToolBar = slicer.util.mainWindow().findChild('QToolBar', 'MouseModeToolBar')
     mouseModeToolBar.setVisible(1)
-    list(map(lambda a: mouseModeToolBar.removeAction(a), filter(lambda a: a.text=="Place Fiducial", mouseModeToolBar.actions())))
+    for a in mouseModeToolBar.actions():
+      if a.text in ["Fiducial", "Toggle Markups Toolbar"]:
+        mouseModeToolBar.removeAction(a)
 
     # viewers
     viewersToolBar = slicer.util.mainWindow().findChild('QToolBar', 'ViewersToolBar')
@@ -198,7 +202,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # Make sure parameter node exists and observed
     self.initializeParameterNode()
     # Lead-DBS call
-    if LeadDBSCall.updateParameterNodeFromArgs(self._parameterNode): # was called from command line
+    if self._parameterNode.GetParameter("MNIPath") != '': # was called from command line
       self.showSingleModule()
       slicer.util.mainWindow().addToolBar(Toolbar.reducedToolbar())
 
@@ -377,7 +381,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # save current state if leadDBS call in case of error
     if self._parameterNode.GetParameter("subjectPath") != '':
-      LeadDBSCall.saveCurrentScene(self._parameterNode.GetParameter("subjectPath"))
+      LeadDBSCall.saveSourceTarget(self._parameterNode.GetParameter("subjectPath"), sourceFiducial, targetFiducial)
 
     # preview
     visualizationNodes = self.logic.previewWarp(sourceFiducial, targetFiducial)

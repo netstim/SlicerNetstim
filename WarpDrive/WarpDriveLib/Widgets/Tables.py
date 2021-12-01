@@ -132,6 +132,13 @@ class AtlasesTable(baseTable):
 
     self.buttonsFrame.layout().addStretch(2)
 
+    self.updateTable()
+
+  def updateTable(self):
+    currentValue = self.view.attributeNameFilter
+    self.view.attributeNameFilter = ('')
+    self.view.attributeNameFilter = currentValue
+
   def onAddButton(self):
     leadDBSPath = slicer.util.settingsValue("NetstimPreferences/leadDBSPath", "", converter=str)
     if leadDBSPath is "":
@@ -149,10 +156,7 @@ class AtlasesTable(baseTable):
         ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(ImportAtlas.ImportAtlasLogic().getAtlasesPath(), atlasName, 'atlas_index.mat'))    
       finally:
         qt.QApplication.restoreOverrideCursor()
-      # reset the attribute filter so the tree is updated
-      currentValue = self.view.attributeNameFilter
-      self.view.attributeNameFilter = ('')
-      self.view.attributeNameFilter = currentValue
+    self.updateTable()
 
   def onRemoveButton(self):
     nodeID = self.view.currentItem()
