@@ -1,9 +1,7 @@
-cmake_minimum_required(VERSION 2.8.9)
-
-find_package(Slicer COMPONENTS ConfigurePrerequisites) 
-
-project(EmptyExtensionTemplate)
-
+# BUILD MODULE https://www.slicer.org/wiki/Documentation/Nightly/Developers/Build_Module
+# cmake_minimum_required(VERSION 2.8.9)
+# find_package(Slicer COMPONENTS ConfigurePrerequisites) 
+# project(EmptyExtensionTemplate)
 
 #-----------------------------------------------------------------------------
 set(MODULE_NAME AlphaOmega)
@@ -11,26 +9,26 @@ set(MODULE_TITLE ${MODULE_NAME})
 
 string(TOUPPER ${MODULE_NAME} MODULE_NAME_UPPER)
 
-find_package(Slicer REQUIRED) 
-include(${Slicer_USE_FILE}) 
+# BUILD MODULE https://www.slicer.org/wiki/Documentation/Nightly/Developers/Build_Module
+# find_package(Slicer REQUIRED) 
+# include(${Slicer_USE_FILE}) 
+
+#-----------------------------------------------------------------------------
+# Alpha Omega SDK
+
+SET(ALPHAOMEGA_SDK_PATH_HINTS
+  "C:/Program Files (x86)/AlphaOmega/Neuro Omega System SDK"
+  )
+find_path(ALPHAOMEGA_SDK_DIR ReadMe.txt
+  PATHS ${ALPHAOMEGA_SDK_PATH_HINTS}
+  DOC "AlphaOmega SDK directory"
+  )
 
 #-----------------------------------------------------------------------------
 add_subdirectory(MRML)
 add_subdirectory(Logic)
 
 #-----------------------------------------------------------------------------
-# Alpha Omega SDK
-
-SET(ALPHAOMEGA_SDK_PATH_HINTS
-"C:/Program Files (x86)/AlphaOmega/Neuro Omega System SDK"
-)
-
-find_path(ALPHAOMEGA_SDK_DIR ReadMe.txt
-  PATHS ${ALPHAOMEGA_SDK_PATH_HINTS}
-  DOC "AlphaOmega SDK directory"
-  )
-
-  #-----------------------------------------------------------------------------
 set(MODULE_EXPORT_DIRECTIVE "Q_SLICER_QTMODULES_${MODULE_NAME_UPPER}_EXPORT")
 
 # Current_{source,binary} and Slicer_{Libs,Base} already included
