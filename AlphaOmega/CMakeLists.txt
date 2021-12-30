@@ -87,3 +87,16 @@ slicerMacroBuildLoadableModule(
 if(BUILD_TESTING)
   add_subdirectory(Testing)
 endif()
+
+#-----------------------------------------------------------------------------
+add_custom_command(
+  TARGET qSlicer${MODULE_NAME}Module POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy
+    ${ALPHAOMEGA_SDK_DIR}/CPP_SDK/win64/NeuroOmega_x64.lib
+    ${CMAKE_BINARY_DIR}/${Slicer_QTLOADABLEMODULES_LIB_DIR}/Release/NeuroOmega_x64.lib)
+
+add_custom_command(
+  TARGET qSlicer${MODULE_NAME}Module POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy
+    ${ALPHAOMEGA_SDK_DIR}/CPP_SDK/win64/NeuroOmega_x64.dll
+    ${CMAKE_BINARY_DIR}/${Slicer_QTLOADABLEMODULES_LIB_DIR}/Release/NeuroOmega_x64.dll)
