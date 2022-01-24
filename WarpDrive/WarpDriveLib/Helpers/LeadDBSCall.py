@@ -62,7 +62,7 @@ class LeadBIDS():
     return os.path.join(self.getNormalizationPath(), 'log', self.subjectID + '_desc-normmethod.json')
 
   def getCoregImages(self, modality='*'):
-    return glob.glob(os.path.join(self.subjectPath, 'coregistration', 'anat', self.subjectID + '*ses-preop_' + modality + '.nii'))
+    return glob.glob(os.path.join(self.subjectPath, 'coregistration', 'anat', self.subjectID + '*ses-preop_acq-*_' + modality + '.nii'))
 
   def getNormalizedImages(self):
     return glob.glob(os.path.join(self.subjectPath, 'normalization', 'anat', self.subjectID + '*ses-preop*.nii'))
