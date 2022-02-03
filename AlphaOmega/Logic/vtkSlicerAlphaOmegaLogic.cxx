@@ -309,7 +309,7 @@ void vtkSlicerAlphaOmegaLogic::ContinuousGatherAlignedData()
   float previousDistanceToTarget = AOChannelNode->GetDriveDistanceToTarget();
   float* newDataArray = new float[bufferSize];
   unsigned int tableNodeIndex = 0;
-  unsigned int j = 0;
+  unsigned int j,k;
   unsigned int previewSamples = AOChannelNode->GetChannelPreviewLengthMiliSeconds() / 1000.0 * AOChannelNode->GetChannelSamplingRate();
   tableNode->GetTable()->SetNumberOfRows(previewSamples);
 
@@ -353,26 +353,28 @@ void vtkSlicerAlphaOmegaLogic::ContinuousGatherAlignedData()
     // Add Data
     for (int i=0; i<numberOfChannels; i++)
     {
+      for(j=0; j<dataForEachChannel; j++)
+      {
+        tableNode->GetTable()->SetValue((tableNodeIndex+j)%previewSamples, i, dataBuffer[(i*dataForEachChannel)+j]);
+      }
+      for(k=0; k<0.1*previewSamples; k++)
+      {
+        tableNode->GetTable()->SetValue((tableNodeIndex+j+k)%previewSamples, i, NAN);
+      }
+    }
+
+    // Add Data
+    for (int i=0; i<numberOfChannels; i++)
+    {
       AOChannelNode = vtkMRMLAlphaOmegaChannelNode::SafeDownCast(this->GetMRMLScene()->GetNthNodeByClass(i,"vtkMRMLAlphaOmegaChannelNode"));
       for(j=0; j<dataForEachChannel; j++)
       {
         newDataArray[j] = dataBuffer[(i*dataForEachChannel)+j] * AOChannelNode->GetChannelBitResolution() / AOChannelNode->GetChannelGain();
-        tableNode->GetTable()->SetValue((tableNodeIndex+j)%previewSamples, i, newDataArray[j]);
       }
       AOChannelNode->SetNewDataArraySize(dataForEachChannel);
       AOChannelNode->AppendNewDataToSaveFile(newDataArray);
     }
 
-    // Add NAN
-    tableNodeIndex = (tableNodeIndex+j)%previewSamples;
-    for (int i=0; i<numberOfChannels; i++)
-    {
-      for(j=0; j<0.1*previewSamples; j++)
-      {
-        tableNode->GetTable()->SetValue((tableNodeIndex+j)%previewSamples, i, NAN);
-      }
-    }
-    
     // Check to see if we should be shutting down
     this->ThreadActiveLock.lock();
     active = this->ThreadActive;
@@ -416,6 +418,7 @@ void vtkSlicerAlphaOmegaLogic::createParameterNode()
   node->SetModuleName(this->GetModuleName().c_str());
   node->SetNodeReferenceID("DistanceToTargetTransform", "");
   node->SetNodeReferenceID("AlignedDataTable", "");
+  node->SetParameter("AlignedRunning", "false");
 }
 
 //-----------------------------------------------------------------------------

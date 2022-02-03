@@ -303,6 +303,7 @@ void qSlicerAlphaOmegaModuleWidget::onAlignedSignalsButton()
     d->alignedSignalsTableNode->setEnabled(false);
     d->alphaOmegaChannelComboBox->setEnabled(false);
     this->setChannelWidgetEnabled(false);
+    d->parameterNode->SetParameter("AlignedRunning", "true");
   }
   else
   {
@@ -311,6 +312,7 @@ void qSlicerAlphaOmegaModuleWidget::onAlignedSignalsButton()
     d->alignedSignalsTableNode->setEnabled(true);
     d->alphaOmegaChannelComboBox->setEnabled(true);
     this->setChannelWidgetEnabled(true);
+    d->parameterNode->SetParameter("AlignedRunning", "false");
   }
 }
 
