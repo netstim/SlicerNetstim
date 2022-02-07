@@ -7,7 +7,7 @@ import WarpDrive, ImportAtlas
 
 from ..Helpers import WarpDriveUtil
 
-class treeViewFilter(object):
+class treeViewFilter:
 
   def __init__(self):
     # defaults
@@ -137,7 +137,7 @@ class treeViewAtlasFilter(treeViewFilter):
 
   def addFunction(self):
     leadDBSPath = slicer.util.settingsValue("NetstimPreferences/leadDBSPath", "", converter=str)
-    if leadDBSPath is "":
+    if leadDBSPath == "":
       qt.QMessageBox().warning(qt.QWidget(), "", "Add Lead-DBS path to Slicer preferences")
       return
     validAtlasesNames = ImportAtlas.ImportAtlasLogic().getValidAtlases()

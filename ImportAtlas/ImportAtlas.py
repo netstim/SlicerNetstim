@@ -91,7 +91,7 @@ class ImportAtlasWidget(ScriptedLoadableModuleWidget):
 
   def onImportButton(self):
     leadDBSPath = slicer.util.settingsValue("NetstimPreferences/leadDBSPath", "", converter=str)
-    if leadDBSPath is "": return
+    if leadDBSPath == "": return
     atlasPath = os.path.join(leadDBSPath, 'templates', 'space', 'MNI152NLin2009bAsym', 'atlases', self.atlasComboBox.currentText)
     logic = ImportAtlasLogic()
     qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
@@ -117,7 +117,7 @@ class ImportAtlasLogic(ScriptedLoadableModuleLogic):
 
   def getValidAtlases(self):
     leadDBSPath = slicer.util.settingsValue("NetstimPreferences/leadDBSPath", "", converter=str)
-    if leadDBSPath is "": return
+    if leadDBSPath == "": return
     import glob
     validAtlases = glob.glob(os.path.join(leadDBSPath, 'templates', 'space', 'MNI152NLin2009bAsym', 'atlases', '*', 'atlas_index.mat'))
     if not validAtlases:
@@ -181,7 +181,7 @@ class ImportAtlasLogic(ScriptedLoadableModuleLogic):
 # Atlas Structure
 #
 
-class LeadDBSAtlasStructure(object):
+class LeadDBSAtlasStructure:
   def __init__(self):
     self.atlasPath = None
     self.index = None
@@ -362,7 +362,7 @@ class DiscFibersStructure(FibersStructure):
 # Lead-DBS Atlas
 #
 
-class LeadDBSAtlas(object):
+class LeadDBSAtlas:
   def __init__(self, atlasPath):
 
     try:
