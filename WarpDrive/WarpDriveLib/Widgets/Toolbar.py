@@ -142,8 +142,9 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     imageNode = slicer.util.loadVolume(LeadDBSCall.LeadFileManager(self.parameterNode.GetParameter("subjectPath")).getCoregImages(modality)[0], properties={'show':False})
     imageNode.SetAndObserveTransformNodeID(self.parameterNode.GetNodeReferenceID("InputNode"))    
     # change to t1 in case modality not present
-    mni_modality = re.search(r"\d", modality)[0].lower()
-    templateFile = glob.glob(os.path.join(self.parameterNode.GetParameter("MNIPath"), "t" + mni_modality+ ".nii"))
+    mni_modality = re.findall(r'(?<=anat_)\w+', modality) + ['t1']
+    mni_modality = mni_modality[0].lower()
+    templateFile = glob.glob(os.path.join(self.parameterNode.GetParameter("MNIPath"), mni_modality + ".nii"))
     if templateFile:
       templateFile = templateFile[0]
     else:
