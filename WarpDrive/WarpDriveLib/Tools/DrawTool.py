@@ -5,7 +5,7 @@ import numpy as np
 from ..Widgets.ToolWidget   import AbstractToolWidget
 from ..Effects.DrawEffect import AbstractDrawEffect
 
-from ..Helpers import GridNodeHelper, WarpDriveUtil
+from ..Helpers import GridNodeHelper
 
 class DrawToolWidget(AbstractToolWidget):
   
@@ -58,7 +58,8 @@ class DrawToolEffect(AbstractDrawEffect):
           return
 
       else: # use new drawing as target fiducial
-        targetFiducial = self.getFiducialFromDrawing(nPoints = self.sourceFiducial.GetNumberOfControlPoints())  
+        targetFiducial = self.getFiducialFromDrawing(nPoints = self.sourceFiducial.GetNumberOfControlPoints())
+        targetFiducial.SetName(slicer.mrmlScene.GenerateUniqueName('drawing'))
 
       if targetFiducial is None:
         slicer.mrmlScene.RemoveNode(self.sourceFiducial)
@@ -68,9 +69,8 @@ class DrawToolEffect(AbstractDrawEffect):
 
       self.sourceFiducial.ApplyTransform(self.parameterNode.GetNodeReference("OutputGridTransform").GetTransformFromParent()) # undo current
 
-      WarpDriveUtil.addCorrection(self.sourceFiducial, targetFiducial, 
-                              spread=int(round(float(self.parameterNode.GetParameter("Spread")))),
-                              referenceNode = self.parameterNode.GetNodeReference("InputNode"))   
+      self.setFiducialNodeAs("Source", self.sourceFiducial, targetFiducial.GetName(), self.parameterNode.GetParameter("Radius"))
+      self.setFiducialNodeAs("Target", targetFiducial, targetFiducial.GetName(), self.parameterNode.GetParameter("Radius"))
 
       self.parameterNode.SetParameter("Update","true")
       self.sourceFiducial = None
@@ -148,7 +148,7 @@ class DrawToolEffect(AbstractDrawEffect):
     fiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
     fiducial.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
     fiducial.GetDisplayNode().SetVisibility(0)
-    fiducial.GetDisplayNode().SetTextScale(0)
+    fiducial.GetDisplayNode().SetPointLabelsVisibility(0)
     points = vtk.vtkPoints()
     curve.GetControlPointPositionsWorld(points)
     fiducial.SetControlPointPositionsWorld(points)

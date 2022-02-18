@@ -1,13 +1,14 @@
 import vtk, qt, slicer
 import os, sys, shutil
-import uuid
 from scipy import io
 import numpy as np
 from subprocess import call
 import json
 import glob
 
-from . import WarpDriveUtil, GridNodeHelper
+from . import GridNodeHelper
+
+import ImportAtlas
 
 def checkExtensionInstall(extensionName):
   em = slicer.app.extensionsManagerModel()
@@ -21,66 +22,52 @@ def checkExtensionInstall(extensionName):
     slicer.util.exit()
     return True
 
-def updateParameterNodeFromArgs(parameterNode): 
-  if parameterNode.GetParameter("MNIPath") != '':
-    return # was already called
-
-  args = sys.argv
-  if (len(sys.argv) > 2) and os.path.isfile(os.path.join(sys.argv[1],'lead.m')):
-    pathsSeparator = uuid.uuid4().hex
-    subjectPaths = pathsSeparator.join(sys.argv[2:])
-    subjectPath = subjectPaths.split(pathsSeparator)[0]
-    leadDBSPath = sys.argv[1]
-    slicer.app.settings().setValue("NetstimPreferences/leadDBSPath", leadDBSPath)
-    MNIPath = os.path.join(leadDBSPath,'templates','space','MNI152NLin2009bAsym')
-    MNIAtlasPath = os.path.join(MNIPath,'atlases')
-    if sys.platform == "darwin":
-      ext = "maci64"
-    elif sys.platform.startswith('win'):
-      ext = 'exe'
-    else:
-      ext = 'glnxa64'
-    antsApplyTransformsPath = os.path.join(leadDBSPath,'ext_libs','ANTs','antsApplyTransforms.' + ext)
-    # set parameter node
-    parameterNode.SetParameter("separator", pathsSeparator)
-    parameterNode.SetParameter("subjectPaths", subjectPaths)
-    parameterNode.SetParameter("subjectN", "0")
-    parameterNode.SetParameter("subjectPath", subjectPath)
-    parameterNode.SetParameter("MNIPath", MNIPath)
-    parameterNode.SetParameter("MNIAtlasPath", MNIAtlasPath)
-    parameterNode.SetParameter("antsApplyTransformsPath", antsApplyTransformsPath)
-    parameterNode.SetNodeReferenceID("ImageNode", None)
-    parameterNode.SetNodeReferenceID("TemplateNode", None)
-    return True
-
-class LeadBIDS():
+class LeadFileManager():
   def __init__(self, subjectPath):
     self.subjectPath = subjectPath
     self.subjectID = os.path.split(self.subjectPath)[-1]
+    self.useBIDS = os.path.isdir(os.path.join(self.subjectPath,'preprocessing'))
   
   def getNormalizationMethod(self):
-    return os.path.join(self.getNormalizationPath(), 'log', self.subjectID + '_desc-normmethod.json')
+    if self.useBIDS:
+      return os.path.join(self.getNormalizationPath(), 'log', self.subjectID + '_desc-normmethod.json')
+    else:
+      return os.path.join(self.subjectPath,'ea_coreg_approved.mat')
 
   def getCoregImages(self, modality='*'):
-    return glob.glob(os.path.join(self.subjectPath, 'coregistration', 'anat', self.subjectID + '*ses-preop_acq-*_' + modality + '.nii'))
+    if self.useBIDS:
+      modality = self.subjectID + '*ses-preop_acq-*_' + modality if modality=='*' else modality
+      return glob.glob(os.path.join(self.subjectPath, 'coregistration', 'anat', modality + '.nii'))
+    else:
+      modality = 'anat_' + modality if modality == '*' else modality
+      return glob.glob(os.path.join(self.subjectPath, modality + '.nii'))
 
   def getNormalizedImages(self):
-    return glob.glob(os.path.join(self.subjectPath, 'normalization', 'anat', self.subjectID + '*ses-preop*.nii'))
+    if self.useBIDS:
+      return glob.glob(os.path.join(self.subjectPath, 'normalization', 'anat', self.subjectID + '*ses-preop*.nii'))
+    else:
+      return glob.glob(os.path.join(self.subjectPath, 'glanat*.nii'))
 
   def getANTSForwardWarp(self):
-    return os.path.join(self.getNormalizationPath(), 'transformations', self.subjectID + '_from-anchorNative_to-MNI152NLin2009bAsym_desc-ants.nii.gz')
+    if self.useBIDS:
+      return os.path.join(self.getNormalizationPath(), 'transformations', self.subjectID + '_from-anchorNative_to-MNI152NLin2009bAsym_desc-ants.nii.gz')
+    else:
+      return os.path.join(self.subjectPath, 'glanatComposite.nii.gz')
 
   def getANTSInverseWarp(self):
-    return os.path.join(self.getNormalizationPath(), 'transformations', self.subjectID + '_from-MNI152NLin2009bAsym_to-anchorNative_desc-ants.nii.gz')
-
+    if self.useBIDS:
+      return os.path.join(self.getNormalizationPath(), 'transformations', self.subjectID + '_from-MNI152NLin2009bAsym_to-anchorNative_desc-ants.nii.gz')
+    else:
+      return os.path.join(self.subjectPath, 'glanatInverseComposite.nii.gz')
+    
   def getNormalizationPath(self):
     return os.path.join(self.subjectPath, 'normalization')
 
   def getWarpDrivePath(self):
     return os.path.join(self.subjectPath, 'warpdrive')
 
-def saveApprovedData(subjectPath):
-  normalizationMethodFile = LeadBIDS(subjectPath).getNormalizationMethod()
+
+def saveApprovedDataJSON(normalizationMethodFile):
   with open(normalizationMethodFile, 'a+') as f:
     normalizationMethod = json.load(f)
     normalizationMethod['approval'] = 1
@@ -88,9 +75,62 @@ def saveApprovedData(subjectPath):
     json.dump(normalizationMethod, f)
     f.truncate()
 
+def saveApprovedDataLegacy(normalizationMethodFile):
+  try:
+    import h5py
+  except:
+    slicer.util.pip_install('h5py')
+    import h5py
+  try:
+    import hdf5storage
+  except:
+    slicer.util.pip_install('hdf5storage')
+    import hdf5storage
+
+  matfiledata = {}
+  if os.path.isfile(normalizationMethodFile):
+    try:
+      # read file and copy data except for glanat
+      with h5py.File(normalizationMethodFile,'r') as f:
+        for k in f.keys():
+          if k != 'glanat':
+            keyValue = f[k][()]
+            matfiledata[k] = keyValue
+      # now add approved glanat
+      matfiledata[u'glanat'] = np.array([2])
+
+    except: # use other reader for .mat file
+      f = io.loadmat(normalizationMethodFile)
+      for k in f.keys():
+        if k != 'glanat':
+          keyValue = f[k]
+          matfiledata[k] = keyValue
+      matfiledata['glanat'] = np.array([[2]],dtype='uint8')
+      io.savemat(normalizationMethodFile,matfiledata)
+      return
+
+  else:
+    matfiledata[u'glanat'] = np.array([2])
+
+  # save
+  # for some reason putting subject path into hdf5storage.write doesnt work
+  currentDir = os.getcwd()
+  os.chdir(os.path.dirname(normalizationMethodFile))
+  hdf5storage.write(matfiledata, '.', 'ea_coreg_approved.mat', matlab_compatible=True)
+  os.chdir(currentDir)
+
+
+def saveApprovedData(subjectPath):
+  normalizationMethodFile = LeadFileManager(subjectPath).getNormalizationMethod()
+  if normalizationMethodFile.endswith('json'):
+    saveApprovedDataJSON(normalizationMethodFile)
+  else:
+    saveApprovedDataLegacy(normalizationMethodFile)
+
+
 def loadSubjectTransform(subjectPath, antsApplyTransformsPath):
 
-  transformPath = LeadBIDS(subjectPath).getANTSForwardWarp()
+  transformPath = LeadFileManager(subjectPath).getANTSForwardWarp()
 
   # update subject warp fields to new lead dbs specification
   if os.path.isfile(transformPath.replace('.nii.gz','.h5')):
@@ -102,7 +142,7 @@ def loadSubjectTransform(subjectPath, antsApplyTransformsPath):
   return glanatCompositeNode
 
 def updateTranform(directory, antsApplyTransformsPath):
-  bidsSubject = LeadBIDS(directory)
+  bidsSubject = LeadFileManager(directory)
   transforms = [bidsSubject.getANTSForwardWarp(), bidsSubject.getANTSInverseWarp()]
   references = [bidsSubject.getNormalizedImages()[0], bidsSubject.getCoregImages()[0]]
   for transform,reference in zip(transforms,references):
@@ -148,7 +188,7 @@ def applyChanges(subjectPath, inputNode, imageNode):
   slicer.mrmlScene.RemoveNode(outNode)
   slicer.mrmlScene.RemoveNode(referenceVolume)
   # save
-  slicer.util.saveNode(inputNode, LeadBIDS(subjectPath).getANTSForwardWarp())
+  slicer.util.saveNode(inputNode, LeadFileManager(subjectPath).getANTSForwardWarp())
 
   # BACKWARD
 
@@ -157,7 +197,7 @@ def applyChanges(subjectPath, inputNode, imageNode):
   outNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
   slicer.modules.transforms.logic().ConvertToGridTransform(inputNode, imageNode, outNode)
   # save
-  slicer.util.saveNode(outNode, LeadBIDS(subjectPath).getANTSInverseWarp())
+  slicer.util.saveNode(outNode, LeadFileManager(subjectPath).getANTSInverseWarp())
   # delete aux node
   slicer.mrmlScene.RemoveNode(outNode)
   
@@ -181,36 +221,41 @@ def setTargetFiducialsAsFixed():
       # remove target attribute
       shNode.RemoveItemAttribute(shNode.GetItemByDataNode(fiducialNode), 'target')
       # add as fixed point
-      WarpDriveUtil.addFixedPoint(fiducialNode)
+      # WarpDriveUtil.addFixedPoint(fiducialNode)
       # remove correction
       removeNodeAndChildren(parentFolder)
       # change fixed point name
       fiducialNode.SetName(parentFolderName)
 
-def saveCurrentScene(subjectPath):
+def saveSourceTarget(subjectPath, sourceNode, targetNode):
   """
-  Save corrections and fixed points is subject directory so will be loaded next time
+  Save source and target in subject directory so will be loaded next time
   """
-  warpDriveSavePath = LeadBIDS(subjectPath).getWarpDrivePath()
-  # delete previous
-  if os.path.isdir(warpDriveSavePath):
-    shutil.rmtree(warpDriveSavePath)
-  # create directories
-  os.mkdir(warpDriveSavePath)
-  os.mkdir(os.path.join(warpDriveSavePath,'Data'))
-  # set scene URL
-  slicer.mrmlScene.SetURL(os.path.join(warpDriveSavePath, 'WarpDriveScene.mrml'))
-  # save corrections
+  warpDriveSavePath = LeadFileManager(subjectPath).getWarpDrivePath()
+  if not os.path.isdir(warpDriveSavePath):
+    os.mkdir(warpDriveSavePath)  
+  slicer.util.saveNode(sourceNode, os.path.join(warpDriveSavePath, 'source.json'))
+  slicer.util.saveNode(targetNode, os.path.join(warpDriveSavePath, 'target.json'))
+
+def getAtlasesNamesInScene():
   shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-  for nodeType, nodeExt in zip(['vtkMRMLMarkupsFiducialNode', 'vtkMRMLLabelMapVolumeNode'], ['.fcsv', '.nrrd']):
-    nodes = slicer.mrmlScene.GetNodesByClass(nodeType)
-    nodes.UnRegister(slicer.mrmlScene)
-    for i in range(nodes.GetNumberOfItems()):
-      node = nodes.GetItemAsObject(i)
-      if 'correction' in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(node)):
-        slicer.util.saveNode(node, os.path.join(warpDriveSavePath, 'Data', uuid.uuid4().hex + nodeExt))
-  # save scene
-  slicer.mrmlScene.Commit()
+  folderNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLFolderDisplayNode')
+  folderNodes.UnRegister(slicer.mrmlScene)
+  names = []
+  for i in range(folderNodes.GetNumberOfItems()):
+    folderNode = folderNodes.GetItemAsObject(i)
+    if 'atlas' in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(folderNode)):
+      if  shNode.GetItemParent(shNode.GetItemByDataNode(folderNode)) == shNode.GetSceneItemID():
+        names.append(folderNode.GetName())
+  return names
+
+def saveSceneInfo(subjectPath):
+  warpDriveSavePath = LeadFileManager(subjectPath).getWarpDrivePath()
+  info = {}
+  info["atlasNames"] = getAtlasesNamesInScene()
+  with open(os.path.join(warpDriveSavePath,'info.json'), 'w') as jsonFile:
+    json.dump(info, jsonFile)
+
 
 def DeleteCorrections():
   shNode = slicer.mrmlScene.GetSubjectHierarchyNode()

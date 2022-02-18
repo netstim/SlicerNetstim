@@ -12,7 +12,6 @@ set(MODULE_PYTHON_SCRIPTS
   WarpDriveLib/Effects/__init__.py
   WarpDriveLib/Helpers/GridNodeHelper.py
   WarpDriveLib/Helpers/LeadDBSCall.py
-  WarpDriveLib/Helpers/WarpDriveUtil.py
   WarpDriveLib/Helpers/__init__.py
   WarpDriveLib/Tools/DrawTool.py
   WarpDriveLib/Tools/NoneTool.py
@@ -21,7 +20,7 @@ set(MODULE_PYTHON_SCRIPTS
   WarpDriveLib/Tools/__init__.py
   WarpDriveLib/Widgets/Toolbar.py
   WarpDriveLib/Widgets/ToolWidget.py
-  WarpDriveLib/Widgets/TreeView.py
+  WarpDriveLib/Widgets/Tables.py
   WarpDriveLib/Widgets/__init__.py
   WarpDriveLib/__init__.py
   )
@@ -35,6 +34,7 @@ set(MODULE_PYTHON_RESOURCES
   Resources/Icons/PointToPoint.png
   Resources/Icons/Rename.png
   Resources/Icons/Smudge.png
+  Resources/Icons/SlicerVisible.png
   Resources/UI/${MODULE_NAME}.ui
   )
 

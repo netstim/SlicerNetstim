@@ -5,7 +5,7 @@ import numpy as np
 from ..Widgets.ToolWidget   import AbstractToolWidget
 from ..Effects.PointToPointEffect import AbstractPointToPointEffect
 
-from ..Helpers import GridNodeHelper, WarpDriveUtil
+from ..Helpers import GridNodeHelper
 
 class PointToPointToolWidget(AbstractToolWidget):
     
@@ -35,9 +35,8 @@ class PointToPointToolEffect(AbstractPointToPointEffect):
 
       sourceFiducial.ApplyTransform(self.parameterNode.GetNodeReference("OutputGridTransform").GetTransformFromParent()) # undo current
 
-      WarpDriveUtil.addCorrection(sourceFiducial, targetFiducial, 
-                              spread=int(round(float(self.parameterNode.GetParameter("Spread")))),
-                              referenceNode = self.parameterNode.GetNodeReference("InputNode"))   
+      self.setFiducialNodeAs("Source", sourceFiducial, targetFiducial.GetName(), self.parameterNode.GetParameter("Radius"))
+      self.setFiducialNodeAs("Target", targetFiducial, targetFiducial.GetName(), self.parameterNode.GetParameter("Radius"))
 
       self.parameterNode.SetParameter("Update","true")
  
@@ -54,7 +53,7 @@ class PointToPointToolEffect(AbstractPointToPointEffect):
     targetFiducial.SetControlPointPositionsWorld(self.transform.GetTargetLandmarks())
     targetFiducial.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
     targetFiducial.GetDisplayNode().SetVisibility(0)
-    targetFiducial.SetName(slicer.mrmlScene.GenerateUniqueName('Point'))
+    targetFiducial.SetName(slicer.mrmlScene.GenerateUniqueName('point'))
     return sourceFiducial, targetFiducial
 
 
