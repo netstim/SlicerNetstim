@@ -414,7 +414,7 @@ class LeadDBSAtlas:
     names = []
     atlases = atlasFile['atlases']
     for column in atlases['names']:
-      name = ''.join(map(chr, atlases[column[0]][:]))
+      name = ''.join(map(chr, np.squeeze(atlases[column[0]][:])))
       names.append(name.split('.')[0])
     return names
   
@@ -444,7 +444,7 @@ class LeadDBSAtlas:
       ref = atlasFile['atlases']['pixdim'][0,i]
       data = atlasFile[ref][()]
       if data.dtype == np.dtype('uint16'):
-        pixdimType.append(''.join(map(chr, data)))
+        pixdimType.append(''.join(map(chr, np.squeeze(data))))
       else:
         pixdimType.append('numeric')
     return pixdimType
