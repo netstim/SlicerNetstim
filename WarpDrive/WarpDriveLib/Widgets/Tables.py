@@ -141,7 +141,7 @@ class AtlasesTable(baseTable):
 
   def onAddButton(self):
     leadDBSPath = slicer.util.settingsValue("NetstimPreferences/leadDBSPath", "", converter=str)
-    if leadDBSPath is "":
+    if leadDBSPath == "":
       qt.QMessageBox().warning(qt.QWidget(), "", "Add Lead-DBS path to Slicer preferences")
       return
     validAtlasesNames = ImportAtlas.ImportAtlasLogic().getValidAtlases()
