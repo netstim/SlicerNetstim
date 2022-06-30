@@ -115,7 +115,6 @@ class DrawToolEffect(AbstractDrawEffect):
     targetCurve.GetDisplayNode().SetVisibility(0)
     targetCurve.SetControlPointPositionsWorld(resampledPoints)
     targetCurve.SetCurveTypeToShortestDistanceOnSurface(slicedModel)
-    targetCurve.ResampleCurveSurface(sampleDistance, slicer.vtkMRMLModelNode().SafeDownCast(slicedModel), 0.0025)
     targetCurve.ResampleCurveWorld(targetCurve.GetCurveLengthWorld() / max((resampledPoints.GetNumberOfPoints() - 1), 1))
       
     # curve to fiducial
@@ -147,6 +146,7 @@ class DrawToolEffect(AbstractDrawEffect):
   def curveToFiducial(self, curve):
     fiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
     fiducial.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
+    fiducial.GetDisplayNode().SetGlyphScale(1)
     fiducial.GetDisplayNode().SetVisibility(0)
     fiducial.GetDisplayNode().SetPointLabelsVisibility(0)
     points = vtk.vtkPoints()

@@ -79,42 +79,88 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     self.nextButton.setFixedWidth(75)
     self.nextButton.setStyleSheet("background-color: green")
     self.addWidget(self.nextButton)
-    self.nextButton.connect("clicked(bool)", self.onNextButton)
+    self.nextButton.connect("clicked(bool)", self.nextSubject)
 
     #
     # Update
     #
 
-    self.updateModalities(self.parameterNode.GetParameter("subjectPath"))
-    self.initSubject()
-    self.updateToolbarFromParameterNode()
+    self.nextSubject()
 
 
+  def nextSubject(self):
+    if self.parameterNode.GetParameter("CurrentSubject"):
+      keep_same_subject = self.finalizeCurrentSubject()
+      if keep_same_subject:
+        return
+    leadSubjects  = json.loads(self.parameterNode.GetParameter("LeadSubjects"))
+    if not leadSubjects:
+      slicer.util.exit()
+    if isinstance(leadSubjects, dict):
+      leadSubjects = [leadSubjects]
+    self.parameterNode.SetParameter("CurrentSubject", json.dumps(leadSubjects.pop(0)))
+    self.parameterNode.SetParameter("LeadSubjects", json.dumps(leadSubjects))
+    self.initializeCurrentSubject()
 
-  def initSubject(self):
-    subjectPath = self.parameterNode.GetParameter("subjectPath")
-    subjectWarpDrivePath = LeadDBSCall.LeadFileManager(subjectPath).getWarpDrivePath()
-    # set up transform
-    inputNode = LeadDBSCall.loadSubjectTransform(subjectPath, self.parameterNode.GetParameter("antsApplyTransformsPath"))
+  def initializeCurrentSubject(self):
+
+    currentSubject = json.loads(self.parameterNode.GetParameter("CurrentSubject"))
+    inputNode = slicer.util.loadTransform(currentSubject["forward_transform"])
     outputNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLGridTransformNode')
     inputNode.SetAndObserveTransformNodeID(outputNode.GetID())
 
-    if os.path.isfile(os.path.join(subjectWarpDrivePath,'target.json')):
-      targetFiducial = slicer.util.loadMarkups(os.path.join(subjectWarpDrivePath,'target.json'))
-      sourceFiducial = slicer.util.loadMarkups(os.path.join(subjectWarpDrivePath,'source.json'))
+    # TODO
+    if os.path.isfile(os.path.join(currentSubject["warpdrive_path"],'target.json')):
+      targetFiducial = slicer.util.loadMarkups(os.path.join(currentSubject["warpdrive_path"],'target.json'))
+      sourceFiducial = slicer.util.loadMarkups(os.path.join(currentSubject["warpdrive_path"],'source.json'))
     else:
       targetFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+      targetFiducial.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
+      targetFiducial.GetDisplayNode().SetGlyphScale(1)
       sourceFiducial = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+      sourceFiducial.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
+      sourceFiducial.GetDisplayNode().SetGlyphScale(1)
 
     # parameter node
     self.parameterNode.SetNodeReferenceID("InputNode", inputNode.GetID())
     self.parameterNode.SetNodeReferenceID("OutputGridTransform", outputNode.GetID())
     self.parameterNode.SetNodeReferenceID("SourceFiducial", sourceFiducial.GetID())
     self.parameterNode.SetNodeReferenceID("TargetFiducial", targetFiducial.GetID())
-    
-    self.onModalityPressed([],self.modalityComboBox.currentText)
 
-    jsonFileName = os.path.join(subjectWarpDrivePath,'info.json')
+    self.updateModalities()
+    self.onModalityPressed([], self.modalityComboBox.currentText)
+
+    self.setUpAtlases()
+
+
+  def finalizeCurrentSubject(self):
+    ToolWidget.AbstractToolWidget.cleanEffects()
+    currentSubject = json.loads(self.parameterNode.GetParameter("CurrentSubject"))
+    sourceFiducial = self.parameterNode.GetNodeReference("SourceFiducial")
+    targetFiducial = self.parameterNode.GetNodeReference("TargetFiducial")
+
+    if sourceFiducial.GetNumberOfControlPoints(): # corrections made
+      if self.hardenChangesCheckBox.checked:
+        LeadDBSCall.applyChanges(self.parameterNode.GetNodeReference("InputNode"), self.parameterNode.GetNodeReference("ImageNode"), currentSubject["forward_transform"], currentSubject["inverse_transform"])
+        sourceFiducial.Copy(targetFiducial) # set all as fixed points
+      LeadDBSCall.saveSourceTarget(currentSubject["warpdrive_path"], sourceFiducial, targetFiducial)
+      LeadDBSCall.saveSceneInfo(currentSubject["warpdrive_path"])
+    else:
+      if LeadDBSCall.queryUserApproveSubject():
+        LeadDBSCall.saveApprovedData(currentSubject["normlog_file"])
+      else:
+        return 1 # user canceled 
+
+    # clean up
+    slicer.mrmlScene.RemoveNode(sourceFiducial)
+    slicer.mrmlScene.RemoveNode(targetFiducial)
+    slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("InputNode"))
+    slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("ImageNode"))
+    slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("OutputGridTransform"))
+    
+  def setUpAtlases(self):
+    currentSubject = json.loads(self.parameterNode.GetParameter("CurrentSubject"))
+    jsonFileName = os.path.join(currentSubject["warpdrive_path"],'info.json')
     if os.path.isfile(jsonFileName):
       with open(jsonFileName, 'r') as jsonFile:
         info = json.load(jsonFile)
@@ -130,7 +176,8 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
       if ('atlas' in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(folderNode))) and (folderNode.GetName() in atlasNames):
         atlasNames.pop(atlasNames.index(folderNode.GetName()))
     for name in atlasNames:
-      ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(self.parameterNode.GetParameter("MNIAtlasPath"), name, 'atlas_index.mat'))
+      ImportAtlas.ImportAtlasLogic().readAtlas(os.path.join(ImportAtlas.ImportAtlasLogic().getAtlasesPath(), name, 'atlas_index.mat'))
+
 
   def onModalityPressed(self, item, modality=None):
     if modality is None:
@@ -139,12 +186,13 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("ImageNode"))
     slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("TemplateNode"))
     # initialize new image and init
-    imageNode = slicer.util.loadVolume(LeadDBSCall.LeadFileManager(self.parameterNode.GetParameter("subjectPath")).getCoregImages(modality)[0], properties={'show':False})
+    currentSubject = json.loads(self.parameterNode.GetParameter("CurrentSubject"))
+    imageNode = slicer.util.loadVolume(currentSubject["anat_files"][modality], properties={'show':False})
     imageNode.SetAndObserveTransformNodeID(self.parameterNode.GetNodeReferenceID("InputNode"))    
     # change to t1 in case modality not present
-    mni_modality = re.findall(r'(?<=anat_)\w+', modality) + ['t1']
-    mni_modality = mni_modality[0].lower()
-    templateFile = glob.glob(os.path.join(self.parameterNode.GetParameter("MNIPath"), mni_modality + ".nii"))
+    mni_modality = re.findall(r'(?<=T)\d', modality) + ['1']
+    mni_modality = mni_modality[0]
+    templateFile = glob.glob(os.path.join(self.parameterNode.GetParameter("MNIPath"), "t" + mni_modality + ".nii"))
     if templateFile:
       templateFile = templateFile[0]
     else:
@@ -162,68 +210,16 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
 
 
   def updateToolbarFromParameterNode(self, caller=None, event=None):
-    # subject text
-    subjectN = int(self.parameterNode.GetParameter("subjectN"))
-    subjectPaths = self.parameterNode.GetParameter("subjectPaths").split(self.parameterNode.GetParameter("separator"))
-    self.subjectNameLabel.text = 'Subject: ' + os.path.split(os.path.abspath(self.parameterNode.GetParameter("subjectPath")))[-1]
-    self.nextButton.text = 'Exit' if subjectN == len(subjectPaths)-1 else 'Next'
-    # modality
-    self.modalityComboBox.setCurrentText(self.parameterNode.GetParameter("modality"))
+    self.subjectNameLabel.text = 'Subject: ' + json.loads(self.parameterNode.GetParameter("CurrentSubject"))["id"]
+    self.nextButton.text = 'Next' if len(json.loads(self.parameterNode.GetParameter("LeadSubjects"))) else 'Exit'
+    self.modalityComboBox.setCurrentText(self.parameterNode.GetParameter("modality"))      
 
 
-  def onNextButton(self):
-    ToolWidget.AbstractToolWidget.cleanEffects()
-    subjectPath = self.parameterNode.GetParameter("subjectPath")
-    sourceFiducial = self.parameterNode.GetNodeReference("SourceFiducial")
-    targetFiducial = self.parameterNode.GetNodeReference("TargetFiducial")
-
-    if self.parameterNode.GetNodeReference("SourceFiducial").GetNumberOfControlPoints(): # corrections made
-      if self.hardenChangesCheckBox.checked:
-        LeadDBSCall.applyChanges(subjectPath, self.parameterNode.GetNodeReference("InputNode"), self.parameterNode.GetNodeReference("ImageNode")) # save changes
-        sourceFiducial.Copy(targetFiducial) # set all as fixed points
-      LeadDBSCall.saveSourceTarget(subjectPath, sourceFiducial, targetFiducial)
-      LeadDBSCall.saveSceneInfo(subjectPath)
-    else:
-      if not LeadDBSCall.queryUserApproveSubject(subjectPath):
-        return # user canceled 
-
-    # clean up
-
-    # remove nodes
-    slicer.mrmlScene.RemoveNode(sourceFiducial)
-    slicer.mrmlScene.RemoveNode(targetFiducial)
-    slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("InputNode"))
-    slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("ImageNode"))
-    slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("OutputGridTransform"))
-    
-    # move to next subject
-
-    nextSubjectN = int(self.parameterNode.GetParameter("subjectN"))+1
-    subjectPaths = self.parameterNode.GetParameter("subjectPaths").split(self.parameterNode.GetParameter("separator"))
-  
-    if nextSubjectN < len(subjectPaths):
-      self.updateModalities(subjectPaths[nextSubjectN])
-      self.parameterNode.SetParameter("subjectN", str(nextSubjectN))
-      self.parameterNode.SetParameter("subjectPath", subjectPaths[nextSubjectN])
-      self.initSubject()
-      self.updateToolbarFromParameterNode()
-    else:
-      slicer.util.exit()
-
-
-  def updateModalities(self, subjectPath):
+  def updateModalities(self):
+    currentSubject = json.loads(self.parameterNode.GetParameter("CurrentSubject"))
     currentModality = self.modalityComboBox.currentText
-    subjectModalities = self.getAvailableModalities(subjectPath)
-    if currentModality not in subjectModalities:
-      self.parameterNode.SetParameter("modality", subjectModalities[0])
+    subjectModalities = list(currentSubject["anat_files"].keys())
     self.modalityComboBox.clear()
     self.modalityComboBox.addItems(subjectModalities)
-
-  def getAvailableModalities(self, directory):
-    modalities = []
-    fileNames = LeadDBSCall.LeadFileManager(directory).getCoregImages()
-    for fileName in fileNames:
-      fileName = os.path.split(fileName)[-1] # remove directory
-      fileName = os.path.splitext(fileName)[0] # remove extension
-      modalities.append(fileName)
-    return modalities
+    if currentModality not in subjectModalities:
+      self.parameterNode.SetParameter("modality", subjectModalities[0])

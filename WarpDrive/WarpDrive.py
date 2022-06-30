@@ -123,7 +123,11 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # Initial GUI update
     self.updateGUIFromParameterNode()
 
-
+    # Lead-DBS call
+    self.initializeParameterNode()
+    if self._parameterNode.GetParameter("LeadSubjects"): # was called from command line
+      self.showSingleModule()
+      slicer.util.mainWindow().addToolBar(Toolbar.reducedToolbar())
 
   def showSingleModule(self):
     
@@ -166,10 +170,10 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.reloadCollapsibleButton.setVisible(not singleModule)
 
     # slice controllers
-    for color in ["Red","Green","Yellow"]:
-      sliceController = slicer.app.layoutManager().sliceWidget(color).sliceController()
-      sliceController.pinButton().hide()
-      sliceController.viewLabel().hide()
+    # for color in ["Red","Green","Yellow"]:
+    #   sliceController = slicer.app.layoutManager().sliceWidget(color).sliceController()
+    #   sliceController.pinButton().hide()
+    #   sliceController.viewLabel().hide()
 
     # data probe
     for i in range(slicer.mrmlScene.GetNumberOfNodesByClass("vtkMRMLScriptedModuleNode")):
@@ -179,6 +183,8 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # set name
     slicer.util.mainWindow().setWindowTitle("Warp Drive")
+    slicer.util.mainWindow().showMaximized()
+    qt.QApplication.processEvents()
 
   def cleanup(self):
     """
@@ -201,10 +207,6 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     """
     # Make sure parameter node exists and observed
     self.initializeParameterNode()
-    # Lead-DBS call
-    if self._parameterNode.GetParameter("MNIPath") != '': # was called from command line
-      self.showSingleModule()
-      slicer.util.mainWindow().addToolBar(Toolbar.reducedToolbar())
 
   def onSceneStartClose(self, caller=None, event=None):
     """

@@ -18,6 +18,7 @@ class AbstractDrawEffect(AbstractCircleEffect):
     self.drawnCurveNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
     self.drawnCurveNode.GetDisplayNode().SetPropertiesLabelVisibility(0)
     self.drawnCurveNode.GetDisplayNode().SetLineThickness(1)
+    self.drawnCurveNode.GetDisplayNode().SetGlyphScale(1)
 
     # interaction state variables
     self.activeSlice = None
