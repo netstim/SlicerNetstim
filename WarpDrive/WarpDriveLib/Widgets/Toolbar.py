@@ -24,6 +24,12 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     self.setWindowTitle(qt.QObject().tr("LeadDBS"))
     self.name = 'LeadDBS'
   
+    #
+    # Space Separator
+    #
+    empty = qt.QWidget()
+    empty.setSizePolicy(qt.QSizePolicy.Expanding,qt.QSizePolicy.Preferred)
+    self.addWidget(empty)
 
     #
     # Modality
@@ -48,19 +54,10 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     templateSlider.connect('valueChanged(int)', lambda value: slicer.util.setSliceViewerLayers(foregroundOpacity = value / 100.0))
     self.addWidget(templateSlider)
 
-
-    #
-    # Space Separator
-    #
-    self.addSeparator()
-    empty = qt.QWidget()
-    empty.setSizePolicy(qt.QSizePolicy.Expanding,qt.QSizePolicy.Preferred)
-    self.addWidget(empty)
-
     #
     # Subject
     #
-
+    self.addSeparator()
     self.subjectNameLabel = qt.QLabel('Subject: ')    
     self.addWidget(self.subjectNameLabel)
 
@@ -70,12 +67,13 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     self.addSeparator()
     self.hardenChangesCheckBox = qt.QCheckBox("Harden Changes")
     self.hardenChangesCheckBox.checked = True
+    self.hardenChangesCheckBox.toolTip = 'When checked, the changes will be written to the subject transform files. If not, the transforms will not be modified and source and target points will be saved for the next time warpdrive is opened.'
     self.addWidget(self.hardenChangesCheckBox)
 
     #
     # Save
     #
-    self.nextButton = qt.QPushButton("Exit")
+    self.nextButton = qt.QPushButton("Next")
     self.nextButton.setFixedWidth(75)
     self.nextButton.setStyleSheet("background-color: green")
     self.addWidget(self.nextButton)
@@ -109,7 +107,6 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     outputNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLGridTransformNode')
     inputNode.SetAndObserveTransformNodeID(outputNode.GetID())
 
-    # TODO
     if os.path.isfile(os.path.join(currentSubject["warpdrive_path"],'target.json')):
       targetFiducial = slicer.util.loadMarkups(os.path.join(currentSubject["warpdrive_path"],'target.json'))
       sourceFiducial = slicer.util.loadMarkups(os.path.join(currentSubject["warpdrive_path"],'source.json'))
@@ -193,10 +190,7 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     mni_modality = re.findall(r'(?<=T)\d', modality) + ['1']
     mni_modality = mni_modality[0]
     templateFile = glob.glob(os.path.join(self.parameterNode.GetParameter("MNIPath"), "t" + mni_modality + ".nii"))
-    if templateFile:
-      templateFile = templateFile[0]
-    else:
-      templateFile = os.path.join(self.parameterNode.GetParameter("MNIPath"), "t1.nii")
+    templateFile = templateFile[0] if templateFile else os.path.join(self.parameterNode.GetParameter("MNIPath"), "t1.nii")
     templateNode = slicer.util.loadVolume(templateFile, properties={'show':False})
     templateNode.GetDisplayNode().AutoWindowLevelOff()
     templateNode.GetDisplayNode().SetWindow(100)
@@ -211,6 +205,7 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
 
   def updateToolbarFromParameterNode(self, caller=None, event=None):
     self.subjectNameLabel.text = 'Subject: ' + json.loads(self.parameterNode.GetParameter("CurrentSubject"))["id"]
+    self.subjectNameLabel.toolTip = os.path.dirname(json.loads(self.parameterNode.GetParameter("CurrentSubject"))["warpdrive_path"])
     self.nextButton.text = 'Next' if len(json.loads(self.parameterNode.GetParameter("LeadSubjects"))) else 'Exit'
     self.modalityComboBox.setCurrentText(self.parameterNode.GetParameter("modality"))      
 

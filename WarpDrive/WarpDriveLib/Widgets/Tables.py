@@ -100,9 +100,9 @@ class baseTable(qt.QWidget):
     self.buttonsFrame.layout().addWidget(self.addButton,1)
     self.buttonsFrame.layout().addWidget(self.removeButton,1)
 
-    layout = qt.QVBoxLayout(self)
-    layout.addWidget(self.buttonsFrame)
-    layout.addWidget(self.view)
+    self.parentLayout = qt.QVBoxLayout(self)
+    self.parentLayout.addWidget(self.buttonsFrame)
+    self.parentLayout.addWidget(self.view)
   
   def onAddButton(self):
     pass
@@ -249,6 +249,10 @@ class WarpDriveCorrectionsTable(baseTable):
 
     self.addButton.setText('Fixed point')
     self.addButton.setToolTip('Add fixed point')
+
+    self.previewSelectedCheckBox = qt.QCheckBox('Preview selected correction')
+    self.previewSelectedCheckBox.setChecked(True)
+    self.parentLayout.addWidget(self.previewSelectedCheckBox)
   
   def onSourceVisibleToggled(self):
     pass
@@ -427,6 +431,7 @@ class WarpDriveCorrectionsManager(VTKObservationMixin, WarpDriveCorrectionsTable
       if targetFiducialNode.GetNthControlPointLabel(i) == controlPointName:
         targetFiducialNode.SetNthControlPointDescription(i, "%.01f"%value)
         sourceFiducialNode.SetNthControlPointDescription(i, "%.01f"%value)
+        self.parameterNode.SetParameter("Update","true")
     self._updatingFiducials = False
 
   def updateSelected(self, controlPointName, value):
@@ -439,9 +444,12 @@ class WarpDriveCorrectionsManager(VTKObservationMixin, WarpDriveCorrectionsTable
       if targetFiducialNode.GetNthControlPointLabel(i) == controlPointName:
         targetFiducialNode.SetNthControlPointSelected(i, value)
         sourceFiducialNode.SetNthControlPointSelected(i, value)
+        self.parameterNode.SetParameter("Update","true")
     self._updatingFiducials = False
 
   def onSelectionChanged(self):
+    if not self.previewSelectedCheckBox.checked:
+      return
     correctionName = self.getSelectedCorrectionName()
     if correctionName is None:
       return

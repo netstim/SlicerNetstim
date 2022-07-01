@@ -127,14 +127,21 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.initializeParameterNode()
     if self._parameterNode.GetParameter("LeadSubjects"): # was called from command line
       self.showSingleModule()
+      # put all toolbars in same row
       slicer.util.mainWindow().addToolBar(Toolbar.reducedToolbar())
+      for tb in slicer.util.mainWindow().findChildren('QToolBar'):
+        slicer.util.mainWindow().removeToolBarBreak(tb)
+      # customize mouse mode
+      mouseModeToolBar = slicer.util.mainWindow().findChild('QToolBar', 'MouseModeToolBar')
+      mouseModeToolBar.setVisible(1)
+      for a in mouseModeToolBar.actions():
+        if a.text in ["Fiducial", "Toggle Markups Toolbar"]:
+          mouseModeToolBar.removeAction(a)
 
   def showSingleModule(self):
     
-    singleModule = True
-
     # toolbars
-    slicer.util.setToolbarsVisible(not singleModule, [])
+    slicer.util.setToolbarsVisible(False, [])
 
     # customize view
     viewToolBar = slicer.util.mainWindow().findChild('QToolBar', 'ViewToolBar')
@@ -144,36 +151,22 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       if action.text not in ['Four-Up', 'Tabbed slice']:
         layoutMenu.removeAction(action)
 
-    # customize mouse mode
-    mouseModeToolBar = slicer.util.mainWindow().findChild('QToolBar', 'MouseModeToolBar')
-    mouseModeToolBar.setVisible(1)
-    for a in mouseModeToolBar.actions():
-      if a.text in ["Fiducial", "Toggle Markups Toolbar"]:
-        mouseModeToolBar.removeAction(a)
-
     # viewers
     viewersToolBar = slicer.util.mainWindow().findChild('QToolBar', 'ViewersToolBar')
     viewersToolBar.setVisible(1)
 
     # slicer window
-    slicer.util.setMenuBarsVisible(not singleModule)
-    slicer.util.setApplicationLogoVisible(not singleModule)
-    slicer.util.setModuleHelpSectionVisible(not singleModule)
-    slicer.util.setModulePanelTitleVisible(not singleModule)
-    slicer.util.setDataProbeVisible(not singleModule)
-    slicer.util.setPythonConsoleVisible(not singleModule)
+    slicer.util.setMenuBarsVisible(False)
+    slicer.util.setApplicationLogoVisible(False)
+    slicer.util.setModuleHelpSectionVisible(False)
+    slicer.util.setModulePanelTitleVisible(False)
+    slicer.util.setDataProbeVisible(False)
+    slicer.util.setPythonConsoleVisible(False)
 
     # inputs area
-    self.ui.IOCollapsibleButton.setVisible(not singleModule)
-
+    self.ui.IOCollapsibleButton.setVisible(False)
     if self.developerMode:
-      self.reloadCollapsibleButton.setVisible(not singleModule)
-
-    # slice controllers
-    # for color in ["Red","Green","Yellow"]:
-    #   sliceController = slicer.app.layoutManager().sliceWidget(color).sliceController()
-    #   sliceController.pinButton().hide()
-    #   sliceController.viewLabel().hide()
+      self.reloadCollapsibleButton.setVisible(False)
 
     # data probe
     for i in range(slicer.mrmlScene.GetNumberOfNodesByClass("vtkMRMLScriptedModuleNode")):
@@ -185,6 +178,32 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     slicer.util.mainWindow().setWindowTitle("Warp Drive")
     slicer.util.mainWindow().showMaximized()
     qt.QApplication.processEvents()
+
+    # Set linked slice views  in all existing slice composite nodes and in the default node
+    sliceCompositeNodes = slicer.util.getNodesByClass("vtkMRMLSliceCompositeNode")
+    defaultSliceCompositeNode = slicer.mrmlScene.GetDefaultNodeByClass("vtkMRMLSliceCompositeNode")
+    if not defaultSliceCompositeNode:
+      defaultSliceCompositeNode = slicer.mrmlScene.CreateNodeByClass("vtkMRMLSliceCompositeNode")
+      defaultSliceCompositeNode.UnRegister(None)  # CreateNodeByClass is factory method, need to unregister the result to prevent memory leaks
+      slicer.mrmlScene.AddDefaultNode(defaultSliceCompositeNode)
+    sliceCompositeNodes.append(defaultSliceCompositeNode)
+    for sliceCompositeNode in sliceCompositeNodes:
+      sliceCompositeNode.SetLinkedControl(True)
+
+    # start-up view
+    for color,name in zip(['Red','Green','Yellow'],['Axial','Coronal','Sagittal']):
+      sliceWidget = slicer.app.layoutManager().sliceWidget(color)
+      sliceWidget.mrmlSliceNode().SetName(name)
+      fov = sliceWidget.mrmlSliceNode().GetFieldOfView()
+      sliceWidget.mrmlSliceNode().SetFieldOfView(fov[0]/4,fov[1]/4,fov[2])
+      if name == 'Axial':
+        sliceWidget.mrmlSliceNode().SetXYZOrigin(0,-12,0)
+        sliceWidget.sliceLogic().SetSliceOffset(-8.4)
+
+    slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutTabbedSliceView)
+
+    qt.QApplication.processEvents()
+
 
   def cleanup(self):
     """
