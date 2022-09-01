@@ -1,9 +1,11 @@
 import os
+from random import sample
 import unittest
 import logging
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
+import numpy as np
 
 import LeadORLib
 import LeadORLib.util
@@ -125,6 +127,7 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # These connections ensure that we update parameter node when scene is closed
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+    self.addObserver(slicer.mrmlScene, slicer.mrmlScene.NodeAddedEvent, self.onNodeAdded)
 
     # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
     # (in the selected parameter node).
@@ -212,6 +215,37 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if self.parent.isEntered:
       self.initializeParameterNode()
 
+  @vtk.calldata_type(vtk.VTK_OBJECT)
+  def onNodeAdded(self, caller, event, calldata, do=False):
+    if not do:
+      qt.QTimer.singleShot(100, lambda c=caller,e=event,cd=calldata: self.onNodeAdded(c, e, cd,True))
+      return
+
+    if (not calldata.GetName().startswith("LeadOR")) or self._parameterNode is None or self._updatingGUIFromParameterNode:
+      return  
+    wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
+    
+    subname = calldata.GetName().split(':')[-1]
+    if subname == "ChannelsNames":
+      self._parameterNode.SetNodeReferenceID("ChannelsNamesText", calldata.GetID())
+      self.addObserver(calldata, calldata.TextModifiedEvent, self.setToolButtonMenus) # todo: what happens when changing channels
+      calldata.Modified()
+    elif subname == "DTT":
+      self._parameterNode.SetNodeReferenceID("DistanceToTargetTransform", calldata.GetID())
+    elif subname == "RecordingSite":
+      print('here')
+      self._parameterNode.SetNodeReferenceID("RecordingSiteMarkups", calldata.GetID())
+      self.addObserver(calldata, calldata.PointAddedEvent, self.updateTrajectoriesData)
+    elif isinstance(calldata,slicer.vtkMRMLTextNode):
+      self._parameterNode.SetNodeReferenceID("Feature", calldata.GetID())
+      self.addObserver(calldata, calldata.TextModifiedEvent, self.updateTrajectoriesData)
+
+    self._parameterNode.EndModify(wasModified)
+
+  def onChannelsNamesModified(self, channelsNamesNode):
+    self._parameterNode.SetParameter("ChannelsNames", channelsNamesNode.GetText())
+
+
   def initializeParameterNode(self):
     """
     Ensure parameter node exists and observed.
@@ -282,10 +316,9 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     self._parameterNode.EndModify(wasModified)
 
-  def updateParameterNodeFromAO(self, caller, event):
+  def updateParameterNodeFromOpenEphys(self, caller, event):
     """
-    This method is called when there are changes in the AlphaOmega module
-    The parameters are copied
+    This method is called when LeadOR nodes managed by OpenEphys are modified (via IGTLink)
     """
     if self._parameterNode is None or self._updatingGUIFromParameterNode:
       return
@@ -301,35 +334,38 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
   def microElectrodeLayoutToggle(self, enabled, N):
     toolButton = getattr(self.ui, 'METoolButton_'+str(N))
+    toolButton.actions()[0].setEnabled(enabled)
     if enabled:
       self.logic.initializeNthTrajectory(N, self._parameterNode.GetNodeReferenceID("DistanceToTargetTransform"))
-      self.setToolButtonMenu(toolButton, N)
     else:
       self.logic.removeNthTrajectory(N)
-      toolButton.actions()[0].menu().clear()
 
-  def setToolButtonMenu(self, toolButton, N):
-    channelsNames = []
-    for i in range(slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLAlphaOmegaChannelNode')):
-      channelsNames.append(slicer.mrmlScene.GetNthNodeByClass(i,'vtkMRMLAlphaOmegaChannelNode').GetChannelName())
-    if not channelsNames:
-      return
-    # init
-    AOChannelsActionGroup = qt.QActionGroup(toolButton)
-    # add none
-    noneChannelAction = qt.QAction('None', toolButton)
-    noneChannelAction.setCheckable(True)
-    noneChannelAction.setChecked(True)
-    AOChannelsActionGroup.addAction(noneChannelAction)
-    # add for each channel
-    for name in channelsNames:
-      channelAction = qt.QAction(name, toolButton)
-      channelAction.setCheckable(True)
-      AOChannelsActionGroup.addAction(channelAction)
-    # set menu
-    toolButton.actions()[0].menu().clear()
-    toolButton.actions()[0].menu().addActions(AOChannelsActionGroup.actions())
-    toolButton.actions()[0].menu().triggered.connect(lambda action, trajectoryN=N: self.logic.setNthTrajectoryAOChannelNode(trajectoryN, action.text))
+  def setToolButtonMenus(self, caller, event):
+    for N in range(9):
+      toolButton = getattr(self.ui, 'METoolButton_'+str(N))
+      channelsNamesNode = self._parameterNode.GetNodeReference("ChannelsNamesText")
+      if channelsNamesNode and channelsNamesNode.GetText():
+        channelsNames = channelsNamesNode.GetText().split(",")
+      else:
+        toolButton.actions()[0].setEnabled(False)
+        return
+      # init
+      AOChannelsActionGroup = qt.QActionGroup(toolButton)
+      # add none
+      noneChannelAction = qt.QAction('None', toolButton)
+      noneChannelAction.setCheckable(True)
+      noneChannelAction.setChecked(True)
+      AOChannelsActionGroup.addAction(noneChannelAction)
+      # add for each channel
+      for name in channelsNames:
+        channelAction = qt.QAction(name, toolButton)
+        channelAction.setCheckable(True)
+        AOChannelsActionGroup.addAction(channelAction)
+      # set menu
+      toolButton.actions()[0].menu().clear()
+      toolButton.actions()[0].menu().addActions(AOChannelsActionGroup.actions())
+      toolButton.actions()[0].setEnabled(toolButton.checked)
+      toolButton.actions()[0].menu().triggered.connect(lambda action, trajectoryN=N: self.logic.setNthTrajectoryAOChannelName(trajectoryN, action.text))
 
   def setMELayout(self, enabledList):
     for enabled, N in zip(enabledList, range(len(enabledList))):  
@@ -356,6 +392,29 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.logic.VTASource = None
       self.ui.amplitudeRadiusLabel.setText('-')
         
+  def updateTrajectoriesData(self, caller, event):
+    recordingSitesNode = self._parameterNode.GetNodeReference("RecordingSiteMarkups")
+    featuresNode = self._parameterNode.GetNodeReference("Feature")
+
+    if featuresNode and recordingSitesNode:
+      featuresLines = featuresNode.GetText().splitlines()
+      if (len(featuresLines)-1) == recordingSitesNode.GetNumberOfControlPoints():
+        samplePoints = self.getPointsFromNode(recordingSitesNode)
+        values = []
+        for i,channelName in enumerate(featuresLines[0].split(',')):
+          for j in range(1,len(featuresLines)):
+            values.append(float(featuresLines[j].split(',')[i]))
+          self.logic.updateTrajectoryModel(channelName,samplePoints,values)
+
+
+  def getPointsFromNode(self,recordingSitesNode):
+    samplePoints = vtk.vtkPoints()
+    pos = np.zeros(3)
+    for i in range(recordingSitesNode.GetNumberOfControlPoints()):
+      recordingSitesNode.GetNthFiducialPosition(i,pos)
+      samplePoints.InsertNextPoint(pos)
+    return samplePoints
+
   def updateStimulationTransform(self):
     if not self.logic.VTASource:
       return
@@ -424,11 +483,15 @@ class LeadORLogic(ScriptedLoadableModuleLogic):
     shNode.RemoveItem(self.trajectories[N].folderID)
     del self.trajectories[N]
 
-  def setNthTrajectoryAOChannelNode(self, N, channelName):
+  def updateTrajectoryModel(self, channelName, samplePoints, values):
+    for trajectory in self.trajectories.values():
+      if getattr(trajectory, 'AlphaOmegaChannelName') == channelName:
+        trajectory.updateModelFromPointsValues(samplePoints, values)
+
+  def setNthTrajectoryAOChannelName(self, N, channelName):
     if N not in self.trajectories.keys() or channelName == 'None':
       return
-    channelNode = self.getAOChannelNodeFromChannelName(channelName)
-    self.trajectories[N].setAlphaOmegaChannelNode(channelNode)
+    self.trajectories[N].AlphaOmegaChannelName = channelName
     
   def getAOChannelNodeFromChannelName(self, channelName):
     for i in range(slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLAlphaOmegaChannelNode')):

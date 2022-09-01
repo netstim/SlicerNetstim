@@ -14,7 +14,7 @@ class Trajectory(VTKObservationMixin):
     VTKObservationMixin.__init__(self)
 
     self.trajectoryNumber = N
-    self.alphaOmegaChannelNode = None
+    self.AlphaOmegaChannelName = None
 
     # create folder to store ME nodes
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
@@ -67,10 +67,10 @@ class Trajectory(VTKObservationMixin):
     # observers
   
     # add fiducial every time the transform moves
-    self.addObserver(self.translationTransform, slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModified)
+    # self.addObserver(self.translationTransform, slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModified)
     # update trace model every time the trace fiducials are modified 
-    self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointAddedEvent,    self.updateModelFromFiducial)
-    self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.updateModelFromFiducial)
+    # self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointAddedEvent,    self.updateModelFromFiducial)
+    # self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.updateModelFromFiducial)
 
 
   def setAlphaOmegaChannelNode(self, channelNode):
@@ -263,6 +263,53 @@ class Trajectory(VTKObservationMixin):
     self.traceModel.GetDisplayNode().SetScalarRange(0.0,1.0)
     self.traceModel.Modified()
     return 
+
+  def updateModelFromPointsValues(self, samplePoints, valuesArray):
+    matrix = vtk.vtkMatrix4x4()
+    self.translationTransform.GetMatrixTransformToParent(matrix)
+    for i in range(samplePoints.GetNumberOfPoints()):
+      currentPoint = np.zeros(3)
+      transformedPoint = np.zeros(4)
+      samplePoints.GetPoint(i,currentPoint)
+      matrix.MultiplyPoint(np.append(currentPoint,1.0), transformedPoint)
+      samplePoints.InsertPoint(i,transformedPoint[:-1])
+    # array to vtk
+    valuesMedian = np.median(valuesArray[:min(len(valuesArray),5)])
+    vtkValuesArray = vtk.vtkDoubleArray()
+    vtkValuesArray.SetName('values')
+    for value in valuesArray:
+      vtkValuesArray.InsertNextTuple((max((value-valuesMedian)/valuesMedian/2.0, 0.1),))
+    # line source
+    polyLineSource = vtk.vtkPolyLineSource()
+    polyLineSource.SetPoints(samplePoints)
+    polyLineSource.Update()
+    # poly data
+    polyData = polyLineSource.GetOutput()
+    polyData.GetPointData().AddArray(vtkValuesArray)
+    polyData.GetPointData().SetScalars(vtkValuesArray)
+    # run tube filter
+    tubeFilter = vtk.vtkTubeFilter()
+    tubeFilter.SetInputData(polyData)
+    tubeFilter.SetVaryRadiusToVaryRadiusByAbsoluteScalar()
+    tubeFilter.SetNumberOfSides(16)
+    tubeFilter.CappingOn()
+    tubeFilter.Update()
+    # smooth
+    smoothFilter = vtk.vtkSmoothPolyDataFilter()
+    smoothFilter.SetInputData(tubeFilter.GetOutput())
+    smoothFilter.SetNumberOfIterations(2)
+    smoothFilter.SetRelaxationFactor(0.5)
+    smoothFilter.FeatureEdgeSmoothingOff()
+    smoothFilter.BoundarySmoothingOn()
+    smoothFilter.Update()
+    # update
+    self.traceModel.SetAndObservePolyData(smoothFilter.GetOutput())
+    self.traceModel.GetDisplayNode().SetActiveScalarName('values')
+    self.traceModel.GetDisplayNode().SetAutoScalarRange(False)
+    self.traceModel.GetDisplayNode().SetScalarRange(0.0,1.0)
+    self.traceModel.Modified()
+    return 
+
 
 
 #
