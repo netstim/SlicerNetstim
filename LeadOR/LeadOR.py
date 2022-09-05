@@ -9,6 +9,7 @@ import numpy as np
 
 import LeadORLib
 import LeadORLib.util
+from LeadORLib.Widgets.tables import FeaturesTable
 
 #
 # LeadOR
@@ -110,6 +111,11 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         stimulationActionGroup.addAction(stimulationAction)
         child.addAction(stimulationAction)
 
+    # Features table
+    self.ui.featuresTableWidget = FeaturesTable()
+    featuresTableLayout = qt.QVBoxLayout(self.ui.featuresFrame)
+    featuresTableLayout.addWidget(self.ui.featuresTableWidget.view)
+
     # Set scene in MRML widgets. Make sure that in Qt designer the top-level qMRMLWidget's
     # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
     # "setMRMLScene(vtkMRMLScene*)" slot.
@@ -206,29 +212,33 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.initializeParameterNode()
 
   @vtk.calldata_type(vtk.VTK_OBJECT)
-  def onNodeAdded(self, caller, event, calldata, do=False):
+  def onNodeAdded(self, caller, event, calldata):
 
     # todo send PR to opigtlink so that markups name is set before adding to scene
-    if not do:
-      qt.QTimer.singleShot(100, lambda c=caller,e=event,cd=calldata: self.onNodeAdded(c, e, cd,True))
-      return
+    qt.QTimer.singleShot(100, lambda cd=calldata: self.onNodeWithNameAdded(cd))
 
-    if (not calldata.GetName().startswith("LeadOR")) or self._parameterNode is None or self._updatingGUIFromParameterNode:
+  def onNodeWithNameAdded(self, node):
+
+    if (not node.GetName().startswith("LeadOR")) or self._parameterNode is None or self._updatingGUIFromParameterNode:
       return  
     wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
     
-    subname = calldata.GetName().split(':')[-1]
+    subname = node.GetName().split(':')[-1]
     if subname == "ChannelsNames":
-      self.addObserver(calldata, calldata.TextModifiedEvent, lambda n=calldata: self.onChannelsNamesModified(n))
-      self.onChannelsNamesModified(calldata)
+      self.addObserver(node, node.TextModifiedEvent, lambda n=node: self.onChannelsNamesModified(n))
+      self.onChannelsNamesModified(node)
     elif subname == "DTT":
-      self._parameterNode.SetNodeReferenceID("DistanceToTargetTransform", calldata.GetID())
+      self._parameterNode.SetNodeReferenceID("DistanceToTargetTransform", node.GetID())
     elif subname == "RecordingSite":
-      self._parameterNode.SetNodeReferenceID("RecordingSiteMarkups", calldata.GetID())
-      self.addObserver(calldata, calldata.PointAddedEvent, self.updateTrajectoriesData)
-    elif isinstance(calldata,slicer.vtkMRMLTextNode):
-      self._parameterNode.SetNodeReferenceID("Feature", calldata.GetID())
-      self.addObserver(calldata, calldata.TextModifiedEvent, self.updateTrajectoriesData)
+      self._parameterNode.SetNodeReferenceID("RecordingSiteMarkups", node.GetID())
+      # self.addObserver(node, node.PointAddedEvent, self.updateTrajectoriesData)
+    elif isinstance(node,slicer.vtkMRMLTextNode):
+      self.logic.addFeature(subname, node.GetID())
+      self.ui.featuresTableWidget.addRowAndSetHeight()
+      featureNames = self._parameterNode.GetParameter("FeatureNames").split(",")
+      featureNames.append(subname)
+      self._parameterNode.SetParameter("FeatureNames", ",".join(featureNames))
+      self.addObserver(node, node.TextModifiedEvent, self.logic.features[subname].update)
 
     self._parameterNode.EndModify(wasModified)
 
@@ -284,15 +294,20 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     self.ui.distanceToTargetComboBox.setCurrentNode(self._parameterNode.GetNodeReference("DistanceToTargetTransform"))
     self.ui.trajectoryTransformComboBox.setCurrentNode(self._parameterNode.GetNodeReference("TrajectoryTransform"))
+    
     self.ui.unlinkedChannelsListWidget.clear()
     unlinkedChannels = self._parameterNode.GetParameter("UnlinkedChannels").split(",")
     self.ui.unlinkedChannelsListWidget.addItems([ch for ch in unlinkedChannels if ch != ""])
 
     transformsAvailable = bool(self._parameterNode.GetNodeReference("DistanceToTargetTransform") and self._parameterNode.GetNodeReference("TrajectoryTransform"))
-
     self.ui.layoutToggleFrame.enabled            = transformsAvailable
     self.ui.microElectrodeLayoutFrame.enabled    = transformsAvailable
     self.ui.stimulationCollapsibleButton.enabled = transformsAvailable and hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI')
+
+    featureNames = self._parameterNode.GetParameter("FeatureNames").split(",")
+    featureNames.remove('') if '' in featureNames else None
+    for i,featureName in enumerate(featureNames):
+      self.ui.featuresTableWidget.updateNthRowFromFeature(i, self.logic.features[featureName])
 
     # All the GUI updates are done
     self._updatingGUIFromParameterNode = False
@@ -328,17 +343,19 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         unlinkedChannels = self._parameterNode.GetParameter("UnlinkedChannels").split(",")
         unlinkedChannels.remove(linkChannelName)
         self._parameterNode.SetParameter("UnlinkedChannels", ",".join(unlinkedChannels))
-        getattr(self.ui, 'METoolButton_'+str(N)).setToolTip(linkChannelName)
       else:
-        linkChannelName = None
-      self.logic.initializeNthTrajectory(N, self._parameterNode.GetNodeReferenceID("DistanceToTargetTransform"), linkChannelName)
+        linkChannelName = str(N)
+      getattr(self.ui, 'METoolButton_'+str(N)).setToolTip(linkChannelName)
+      self.logic.initializeTrajectory(N, self._parameterNode.GetNodeReferenceID("DistanceToTargetTransform"), linkChannelName)
     else:
-      unlinkedChannel = self.logic.removeNthTrajectory(N)
-      if unlinkedChannel is not None:
+      toolButton = getattr(self.ui, 'METoolButton_'+str(N))
+      unlinkedChannel = toolButton.toolTip
+      if toolButton.toolTip != str(N):
         unlinkedChannels = self._parameterNode.GetParameter("UnlinkedChannels").split(",")
         unlinkedChannels.append(unlinkedChannel)
         self._parameterNode.SetParameter("UnlinkedChannels", ",".join(unlinkedChannels))
-        getattr(self.ui, 'METoolButton_'+str(N)).setToolTip('') 
+      toolButton.setToolTip('') 
+      self.logic.removeTrajectory(unlinkedChannel)
 
   def setMELayout(self, enabledList):
     for enabled, N in zip(enabledList, range(len(enabledList))):  
@@ -365,21 +382,6 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.logic.VTASource = None
       self.ui.amplitudeRadiusLabel.setText('-')
         
-  def updateTrajectoriesData(self, caller, event):
-    recordingSitesNode = self._parameterNode.GetNodeReference("RecordingSiteMarkups")
-    featuresNode = self._parameterNode.GetNodeReference("Feature")
-
-    if featuresNode and recordingSitesNode:
-      featuresLines = featuresNode.GetText().splitlines()
-      if (len(featuresLines)-1) == recordingSitesNode.GetNumberOfControlPoints():
-        samplePoints = self.getPointsFromNode(recordingSitesNode)
-        values = []
-        for i,channelName in enumerate(featuresLines[0].split(',')):
-          for j in range(1,len(featuresLines)):
-            values.append(float(featuresLines[j].split(',')[i]))
-          self.logic.updateTrajectoryModel(channelName,samplePoints,values)
-
-
   def getPointsFromNode(self,recordingSitesNode):
     samplePoints = vtk.vtkPoints()
     pos = np.zeros(3)
@@ -423,19 +425,30 @@ class LeadORLogic(ScriptedLoadableModuleLogic):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
+  features = {}
+  trajectories = {}
+
   def __init__(self):
     """
     Called when the logic class is instantiated. Can be used for initializing member variables.
     """
     ScriptedLoadableModuleLogic.__init__(self)
     if slicer.util.settingsValue('Developer/DeveloperMode', False, converter=slicer.util.toBool):
-      import LeadORLib
-      import LeadORLib.util
+      import glob
       import importlib
-      importlib.reload(LeadORLib.util)
+      import LeadORLib
+      LeadORLibPath = os.path.join(os.path.dirname(__file__), 'LeadORLib')
+      G = glob.glob(os.path.join(LeadORLibPath, '**','*.py'))
+      for g in G:
+        relativePath = os.path.relpath(g, LeadORLibPath) # relative path
+        relativePath = os.path.splitext(relativePath)[0] # get rid of .py
+        moduleParts = relativePath.split(os.path.sep) # separate
+        importlib.import_module('.'.join(['LeadORLib']+moduleParts)) # import module
+        module = LeadORLib
+        for modulePart in moduleParts: # iterate over parts in order to load subpkgs
+          module = getattr(module, modulePart)
+        importlib.reload(module) # reload
 
-    self.trajectories = {}
-    self.trajectoriesChannelsNames = [None]*9
     self.VTASource = None
 
     
@@ -445,21 +458,35 @@ class LeadORLogic(ScriptedLoadableModuleLogic):
     """
     if not parameterNode.GetParameter("UnlinkedChannels"):
       parameterNode.SetParameter("UnlinkedChannels", "")
+    if not parameterNode.GetParameter("FeatureNames"):
+      parameterNode.SetParameter("FeatureNames", "")
 
-  def initializeNthTrajectory(self, N, distanceToTargetTransformID, linkChannelName):
-    self.trajectories[N] = LeadORLib.util.Trajectory(N, distanceToTargetTransformID)
-    self.trajectoriesChannelsNames[N] = linkChannelName
+  def addFeature(self, featureName, featureNodeID):
+    self.features[featureName] = LeadORLib.util.Feature(featureName, featureNodeID)
+
+  def setFeatureMapTo(self, featureName, featureMapTo):
+    if featureName in self.features.keys():
+      feature = self.features[featureName]
+      feature.setMapTo(featureMapTo)
+
+  def setFeatureVisibility(self, featureName, visible):
+    if featureName in self.features.keys():
+      feature = self.features[featureName]
+      feature.setVisible(visible)
+
+  def initializeTrajectory(self, N, distanceToTargetTransformID, linkChannelName):
+    self.trajectories[linkChannelName] = LeadORLib.util.Trajectory(N, distanceToTargetTransformID)
   
-  def removeNthTrajectory(self, N):
+  def removeTrajectory(self, trajectoryName):
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
     IDs = vtk.vtkIdList()
-    shNode.GetItemChildren(self.trajectories[N].folderID, IDs, True)
+    shNode.GetItemChildren(self.trajectories[trajectoryName].folderID, IDs, True)
     for i in range(IDs.GetNumberOfIds()):
       shNode.RemoveItem(IDs.GetId(i))
-    shNode.RemoveItem(self.trajectories[N].folderID)
-    del self.trajectories[N]
-    channelName = self.trajectoriesChannelsNames[N]
-    self.trajectoriesChannelsNames[N] = None
+    shNode.RemoveItem(self.trajectories[trajectoryName].folderID)
+    del self.trajectories[trajectoryName]
+    channelName = self.trajectoriesChannelsNames[trajectoryName]
+    self.trajectoriesChannelsNames[trajectoryName] = None
     return channelName
 
   def updateTrajectoryModel(self, channelName, samplePoints, values):

@@ -1,8 +1,53 @@
 import os
 import slicer, vtk
 import numpy as np
+from io import StringIO
 
 from slicer.util import VTKObservationMixin
+
+import LeadOR
+
+#
+# Feature
+#
+
+class Feature():
+
+  def __init__(self, featureName, featureNodeID):
+    self.Name = featureName
+    self.sourceNodeID = featureNodeID
+    self.MapTo = ''
+    self.Visible = True
+
+  def setMapTo(self, mapToText):
+    self.MapTo = mapToText
+
+  def setVisible(self, visible):
+    self.Visible = visible
+
+  def update(self, caller=None, event=None):
+    sourceText = slicer.util.getNode(self.sourceNodeID).GetText()
+    trajectoryNames = sourceText.splitlines()[0].split(",")[1:]
+    data = np.genfromtxt(StringIO(sourceText), delimiter=',', skip_header=1)
+    # get points
+    recordingSitesIDs = np.array(data[:,0], dtype=int)
+    recordingSitePoints = np.zeros((len(recordingSitesIDs),3))
+    for i,recordingSiteID in enumerate(recordingSitesIDs):
+      recordingSitePoints[i,:] = self.getRecordingSitePointFromID(recordingSiteID)
+    # update trajectories
+    for i,trajectoryName in enumerate(trajectoryNames):
+      if trajectoryName in LeadOR.LeadORLogic().trajectories.keys():
+        trajectory = LeadOR.LeadORLogic().trajectories[trajectoryName]
+        featureValues = data[:,i+1].squeeze()
+        if self.MapTo == "TubeRadiusAndColor":
+          trajectory.updateTubeRadiusAndColor(recordingSitePoints, featureValues)
+
+
+  def getRecordingSitePointFromID(self, id):
+    node = LeadOR.LeadORLogic().getParameterNode().GetNodeReference('RecordingSiteMarkups')
+    for i in range(node.GetNumberOfControlPoints()):
+      if int(node.GetNthControlPointLabel(i)) == id:
+        return node.GetNthControlPointPosition(i)
 
 #
 # Trajectory
@@ -264,24 +309,24 @@ class Trajectory(VTKObservationMixin):
     self.traceModel.Modified()
     return 
 
-  def updateModelFromPointsValues(self, samplePoints, valuesArray):
+  def updateTubeRadiusAndColor(self, samplePoints, valuesArray):
     matrix = vtk.vtkMatrix4x4()
     self.translationTransform.GetMatrixTransformToParent(matrix)
-    for i in range(samplePoints.GetNumberOfPoints()):
-      currentPoint = np.zeros(3)
-      transformedPoint = np.zeros(4)
-      samplePoints.GetPoint(i,currentPoint)
-      matrix.MultiplyPoint(np.append(currentPoint,1.0), transformedPoint)
-      samplePoints.InsertPoint(i,transformedPoint[:-1])
+    transformedPoint = np.zeros(4)
+    samplePointsVTK = vtk.vtkPoints()
+    for i in range(samplePoints.shape[0]):
+      matrix.MultiplyPoint(np.append(samplePoints[i,:],1.0), transformedPoint)
+      samplePointsVTK.InsertNextPoint(transformedPoint[:-1])
     # array to vtk
     valuesMedian = np.median(valuesArray[:min(len(valuesArray),5)])
     vtkValuesArray = vtk.vtkDoubleArray()
     vtkValuesArray.SetName('values')
     for value in valuesArray:
-      vtkValuesArray.InsertNextTuple((max((value-valuesMedian)/valuesMedian/2.0, 0.1),))
+      # vtkValuesArray.InsertNextTuple((max((value-valuesMedian)/valuesMedian/2.0, 0.1),))
+      vtkValuesArray.InsertNextTuple((2,)) # TODO
     # line source
     polyLineSource = vtk.vtkPolyLineSource()
-    polyLineSource.SetPoints(samplePoints)
+    polyLineSource.SetPoints(samplePointsVTK)
     polyLineSource.Update()
     # poly data
     polyData = polyLineSource.GetOutput()
