@@ -150,6 +150,9 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.distanceToTargetComboBox.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.ui.distanceToTargetSlider.setMRMLTransformNode(node))
     self.ui.distanceToTargetSlider.connect("valueChanged(double)", lambda value: self.ui.distanceToTargetSlider.applyTransformation(value))
 
+    # default reslice driver
+    self.ui.setDefaultResliceDriverPushButton.clicked.connect(self.setDefaultResliceDriver)
+
     # add connection for each micro electro toggle button 
     for child in self.ui.microElectrodeLayoutFrame.children():
       if isinstance(child, qt.QToolButton):
@@ -297,6 +300,7 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.unlinkedChannelsListWidget.addItems([ch for ch in unlinkedChannels if ch != ""])
 
     transformsAvailable = bool(self._parameterNode.GetNodeReference("DistanceToTargetTransform") and self._parameterNode.GetNodeReference("TrajectoryTransform"))
+    self.ui.setDefaultResliceDriverPushButton.enabled = transformsAvailable
     self.ui.trajectoryPresetComboBox.enabled = transformsAvailable
     self.ui.microElectrodeLayoutFrame.enabled = transformsAvailable
     self.ui.stimulationCollapsibleButton.enabled = transformsAvailable and hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI')
@@ -400,6 +404,10 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       elif index.data() == 'Tip':
         name = 'tipFiducial'
       self.logic.setMEVisibility(name, bool(self.ui.trajectoryVisualizationComboBox.checkState(index)))
+
+  def setDefaultResliceDriver(self):
+    import StereotacticPlan
+    StereotacticPlan.StereotacticPlanLib.util.setDefaultResliceDriver(self._parameterNode.GetNodeReferenceID("DistanceToTargetTransform"))
 
   def updateStimulationTransform(self):
     if not self.logic.VTASource:
