@@ -46,7 +46,7 @@ class customStandardItemModel(qt.QStandardItemModel):
       featureName = index.model().data(index.siblingAtColumn(self.columnNames.index("Name")))
       import LeadOR
       logic = LeadOR.LeadORLogic()
-      logic.setFeatureVisibility(featureName, args[1])
+      logic.setFeatureVisibility(featureName, bool(args[1]))
     qt.QStandardItemModel.setData(self , *args, **kwargs)
 
   def headerData(self,section,orientation,role):

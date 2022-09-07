@@ -24,6 +24,9 @@ class Feature():
 
   def setVisible(self, visible):
     self.Visible = visible
+    for trajectory in LeadOR.LeadORLogic().trajectories.values():
+      if self.MapTo == "TubeRadiusAndColor":
+        trajectory.traceModel.GetDisplayNode().SetVisibility(visible)
 
   def update(self, caller=None, event=None):
     sourceText = slicer.util.getNode(self.sourceNodeID).GetText()
@@ -41,7 +44,6 @@ class Feature():
         featureValues = data[:,i+1].squeeze()
         if self.MapTo == "TubeRadiusAndColor":
           trajectory.updateTubeRadiusAndColor(recordingSitePoints, featureValues)
-
 
   def getRecordingSitePointFromID(self, id):
     node = LeadOR.LeadORLogic().getParameterNode().GetNodeReference('RecordingSiteMarkups')
