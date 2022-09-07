@@ -12,7 +12,7 @@ class ComboDelegate(qt.QItemDelegate):
     logic = LeadOR.LeadORLogic()
     combo = qt.QComboBox(parent)
     combo.addItems(self.comboItems)
-    combo.currentTextChanged.connect(lambda text, feature=index.model().data(index.siblingAtColumn(1)): logic.setFeatureMapTo(feature, text))
+    combo.currentTextChanged.connect(lambda text, feature=index.model().data(index.siblingAtColumn(0)): logic.setFeatureMapTo(feature, text))
     return combo
 
   def setEditorData(self, editor, index):
