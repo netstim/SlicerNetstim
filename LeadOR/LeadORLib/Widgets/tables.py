@@ -1,3 +1,4 @@
+from email.mime import base
 import enum
 import qt, ctk, slicer
 
@@ -24,45 +25,50 @@ class ComboDelegate(qt.QItemDelegate):
     model.setData(index, name, qt.Qt.DisplayRole)
 
 
-class firstColumnCheckableModel(qt.QStandardItemModel):
+class customStandardItemModel(qt.QStandardItemModel):
   def __init__(self , *args, **kwargs):
+    self.columnNames = kwargs["columnNames"]
+    del kwargs["columnNames"]
     super().__init__(*args, **kwargs)
 
   def flags(self, index):
     baseFlags = qt.Qt.ItemIsEnabled | qt.Qt.ItemIsSelectable
-    if index.column() == 0:
+    if index.column() == self.columnNames.index("Visible"):
       return baseFlags | qt.Qt.ItemIsUserCheckable
+    elif index.column() == self.columnNames.index("Name"):
+      return baseFlags
     else:
       return baseFlags | qt.Qt.ItemIsEditable
 
   def setData(self , *args, **kwargs):
     index = args[0] if args else None
     if isinstance(index, qt.QModelIndex) and args[-1] == qt.Qt.CheckStateRole:
-      featureName = index.model().data(index.siblingAtColumn(1))
+      featureName = index.model().data(index.siblingAtColumn(self.columnNames.index("Name")))
       import LeadOR
       logic = LeadOR.LeadORLogic()
       logic.setFeatureVisibility(featureName, args[1])
     qt.QStandardItemModel.setData(self , *args, **kwargs)
 
+  def headerData(self,section,orientation,role):
+    if section == 2:
+      if orientation == qt.Qt.Horizontal and role == qt.Qt.DecorationRole:
+        return qt.QIcon(':Icons/Small/SlicerVisibleInvisible.png')
+    elif orientation == qt.Qt.Horizontal and role == qt.Qt.DisplayRole:
+      return self.columnNames[section]
+    qt.QStandardItemModel.headerData(self,section,orientation,role)
 
-class FeaturesTable(qt.QWidget):
+class FeaturesTable:
 
   RowHeight = 25
 
-  def __init__(self):
-    super().__init__()
+  def __init__(self,view):
+    # super().__init__()
 
-    self.columnNames = ["Visible", "Name", "MapTo"]
-    self.model = firstColumnCheckableModel(0, len(self.columnNames))
-    for i, columnName in enumerate(self.columnNames):
-      self.model.setHeaderData(i, qt.Qt.Horizontal, columnName)
+    self.columnNames = ["Name", "MapTo", "Visible"]
+    self.model = customStandardItemModel(0, len(self.columnNames), columnNames=self.columnNames)
 
-    self.view = qt.QTableView()
-    self.view.setEditTriggers(self.view.CurrentChanged + self.view.DoubleClicked + self.view.SelectedClicked)
-    self.view.setSelectionMode(self.view.SingleSelection)
-    self.view.setSelectionBehavior(self.view.SelectRows)
-    self.view.horizontalHeader().setStretchLastSection(True)
-    self.view.setHorizontalScrollMode(self.view.ScrollPerPixel)
+    self.view = view
+    self.view.setVisible(0)
     self.view.verticalHeader().setMaximumSectionSize(self.RowHeight)
     self.view.verticalHeader().setMinimumSectionSize(self.RowHeight)
     self.view.verticalHeader().setDefaultSectionSize(self.RowHeight)
@@ -70,7 +76,7 @@ class FeaturesTable(qt.QWidget):
     self.view.setModel(self.model)
     self.view.selectionModel().selectionChanged.connect(self.onSelectionChanged)
 
-    self.view.setItemDelegateForColumn(2, ComboDelegate(self.model, ["","TubeRadiusAndColor","TubeRadius","TubeColor"]))
+    self.view.setItemDelegateForColumn(self.columnNames.index("MapTo"), ComboDelegate(self.model, ["","TubeRadiusAndColor","TubeRadius","TubeColor"]))
 
   def onSelectionChanged(self):
     pass
@@ -80,15 +86,20 @@ class FeaturesTable(qt.QWidget):
     for selectedRow in selectedRows:
       return selectedRow.row() # is a single selection view
 
-  def addRowAndSetHeight(self):
+  def addRowAndSetVisibility(self):
     self.model.insertRow(self.model.rowCount())
     self.view.setFixedHeight(self.view.height+self.RowHeight)
+    if self.model.rowCount():
+      self.view.setVisible(1)
+      self.view.horizontalHeader().setSectionResizeMode(0, qt.QHeaderView.Stretch)
+      self.view.horizontalHeader().setSectionResizeMode(1, qt.QHeaderView.Stretch)
+      self.view.horizontalHeader().setSectionResizeMode(2, qt.QHeaderView.ResizeToContents)
 
   def updateNthRowFromFeature(self, rowN, feature):
     for colN,attr in enumerate(self.columnNames):
       index = self.model.index(rowN, colN)
       val = getattr(feature,attr)
-      if colN == 0:
+      if colN == self.columnNames.index("Visible"):
         val = qt.Qt.Checked if val else qt.Qt.Unchecked
         role = qt.Qt.CheckStateRole
       else:

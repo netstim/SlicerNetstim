@@ -112,9 +112,9 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         child.addAction(stimulationAction)
 
     # Features table
-    self.ui.featuresTableWidget = FeaturesTable()
-    featuresTableLayout = qt.QVBoxLayout(self.ui.featuresFrame)
-    featuresTableLayout.addWidget(self.ui.featuresTableWidget.view)
+    self.ui.featuresTableWidget = FeaturesTable(self.ui.featuresTableView)
+    # featuresTableLayout = qt.QVBoxLayout(self.ui.featuresFrame)
+    # featuresTableLayout.addWidget(self.ui.featuresTableWidget.view)
 
     # Set scene in MRML widgets. Make sure that in Qt designer the top-level qMRMLWidget's
     # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
@@ -235,7 +235,7 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       # self.addObserver(node, node.PointAddedEvent, self.updateTrajectoriesData)
     elif isinstance(node,slicer.vtkMRMLTextNode):
       self.logic.addFeature(subname, node.GetID())
-      self.ui.featuresTableWidget.addRowAndSetHeight()
+      self.ui.featuresTableWidget.addRowAndSetVisibility()
       featureNames = self._parameterNode.GetParameter("FeatureNames").split(",")
       featureNames.append(subname)
       self._parameterNode.SetParameter("FeatureNames", ",".join(featureNames))
