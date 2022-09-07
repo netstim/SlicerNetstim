@@ -231,6 +231,7 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self._parameterNode.SetNodeReferenceID("DistanceToTargetTransform", node.GetID())
     elif subname == "RecordingSite":
       self._parameterNode.SetNodeReferenceID("RecordingSiteMarkups", node.GetID())
+      node.GetDisplayNode().SetVisibility(0)
       # self.addObserver(node, node.PointAddedEvent, self.updateTrajectoriesData)
     elif isinstance(node,slicer.vtkMRMLTextNode):
       self.logic.addFeature(subname, node.GetID())

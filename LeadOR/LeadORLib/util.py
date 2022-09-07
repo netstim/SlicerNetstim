@@ -61,6 +61,8 @@ class Trajectory(VTKObservationMixin):
     self.trajectoryNumber = N
     self.AlphaOmegaChannelName = None
 
+    planningTransformID = slicer.util.getNode(distanceToTargetTransformID).GetTransformNodeID()
+
     # create folder to store ME nodes
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
     self.folderID = shNode.CreateFolderItem(shNode.GetSceneItemID(), "Micro Electrode " + str(N))
@@ -90,20 +92,21 @@ class Trajectory(VTKObservationMixin):
     shNode.SetItemParent(shNode.GetItemByDataNode(self.tipFiducial), self.folderID)
 
     # trace fiducials
-    self.traceFiducials = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
-    self.traceFiducials.SetName("Trace Fiducial - ME: " + str(N))
-    self.traceFiducials.GetDisplayNode().SetVisibility(0)
-    shNode.SetItemParent(shNode.GetItemByDataNode(self.traceFiducials), self.folderID)
+    # self.traceFiducials = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    # self.traceFiducials.SetName("Trace Fiducial - ME: " + str(N))
+    # self.traceFiducials.GetDisplayNode().SetVisibility(0)
+    # shNode.SetItemParent(shNode.GetItemByDataNode(self.traceFiducials), self.folderID)
 
     # cluster fiducials
-    self.clusterFiducials = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
-    self.clusterFiducials.SetName("Cluster Fiducial - ME: " + str(N))
-    self.clusterFiducials.GetDisplayNode().SetVisibility(0)
-    shNode.SetItemParent(shNode.GetItemByDataNode(self.clusterFiducials), self.folderID)
+    # self.clusterFiducials = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    # self.clusterFiducials.SetName("Cluster Fiducial - ME: " + str(N))
+    # self.clusterFiducials.GetDisplayNode().SetVisibility(0)
+    # shNode.SetItemParent(shNode.GetItemByDataNode(self.clusterFiducials), self.folderID)
 
     # trace model
     self.traceModel = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
     self.traceModel.SetName("Trace Model - ME: " + str(N))
+    self.traceModel.SetAndObserveTransformNodeID(planningTransformID)
     self.traceModel.CreateDefaultDisplayNodes()
     self.traceModel.GetDisplayNode().SetAndObserveColorNodeID(slicer.util.getNode('Viridis').GetID())
     self.traceModel.GetDisplayNode().ScalarVisibilityOn()
@@ -322,8 +325,9 @@ class Trajectory(VTKObservationMixin):
     vtkValuesArray = vtk.vtkDoubleArray()
     vtkValuesArray.SetName('values')
     for value in valuesArray:
-      # vtkValuesArray.InsertNextTuple((max((value-valuesMedian)/valuesMedian/2.0, 0.1),))
-      vtkValuesArray.InsertNextTuple((2,)) # TODO
+      rel_val_from_cero = max((value / valuesMedian) - 1, 0.1)
+      rel_val_from_cero_to_one = min(rel_val_from_cero / 2.0, 1) # values greater than three times the median are caped to one
+      vtkValuesArray.InsertNextTuple((rel_val_from_cero_to_one,))
     # line source
     polyLineSource = vtk.vtkPolyLineSource()
     polyLineSource.SetPoints(samplePointsVTK)
