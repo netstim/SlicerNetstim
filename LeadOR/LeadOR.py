@@ -90,8 +90,6 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.layout.addWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
 
-    self.ui.layoutToggleFrame.setVisible(False)
-
     if hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI'):
       self.ui.stimulationCollapsibleButton.enabled = True
     else:
@@ -113,8 +111,11 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # Features table
     self.ui.featuresTableWidget = FeaturesTable(self.ui.featuresTableView)
-    # featuresTableLayout = qt.QVBoxLayout(self.ui.featuresFrame)
-    # featuresTableLayout.addWidget(self.ui.featuresTableWidget.view)
+
+    # Visualization
+    for i in range(self.ui.trajectoryVisualizationComboBox.model().rowCount()):
+      index = self.ui.trajectoryVisualizationComboBox.model().index(i,0)
+      self.ui.trajectoryVisualizationComboBox.setCheckState(index, qt.Qt.Checked)
 
     # Set scene in MRML widgets. Make sure that in Qt designer the top-level qMRMLWidget's
     # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
@@ -149,20 +150,16 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.distanceToTargetComboBox.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.ui.distanceToTargetSlider.setMRMLTransformNode(node))
     self.ui.distanceToTargetSlider.connect("valueChanged(double)", lambda value: self.ui.distanceToTargetSlider.applyTransformation(value))
 
-    # micro electrode layouts
-    self.ui.MECenterLayoutPushButton.clicked.connect(lambda b,enabledList=[0,0,0,0,1,0,0,0,0]: self.setMELayout(enabledList))
-    self.ui.MEPlusLayoutPushButton.clicked.connect(  lambda b,enabledList=[0,1,0,1,1,1,0,1,0]: self.setMELayout(enabledList))
-    self.ui.MEXLayoutPushButton.clicked.connect(     lambda b,enabledList=[1,0,1,0,1,0,1,0,1]: self.setMELayout(enabledList))
-
     # add connection for each micro electro toggle button 
     for child in self.ui.microElectrodeLayoutFrame.children():
       if isinstance(child, qt.QToolButton):
         child.toggled.connect(lambda b,N=int(child.objectName.split('_')[-1]): self.microElectrodeLayoutToggle(b,N))
 
+    # micro electrode layouts
+    self.ui.trajectoryPresetComboBox.currentTextChanged.connect(lambda t: self.setTrajectoryLayoutPreset(t))
+
     # ME visibility
-    self.ui.MEModelVisCheckBox.toggled.connect(lambda b: self.logic.setMEVisibility('microElectrodeModel', b))
-    self.ui.MELineVisCheckBox.toggled.connect(lambda b: self.logic.setMEVisibility('trajectoryLine', b))
-    self.ui.METipVisCheckBox.toggled.connect(lambda b: self.logic.setMEVisibility('tipFiducial', b))
+    self.ui.trajectoryVisualizationComboBox.checkedIndexesChanged.connect(self.trajectoryVisualizationChanged)
 
     # unlinkedChannelsBehaviour
     self.ui.unlinkedChannelsListWidget.itemSelectionChanged.connect(self.onUnlinkedChannelsSelectionChanged)
@@ -225,14 +222,13 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     subname = node.GetName().split(':')[-1]
     if subname == "ChannelsNames":
-      self.addObserver(node, node.TextModifiedEvent, lambda n=node: self.onChannelsNamesModified(n))
+      self.addObserver(node, node.TextModifiedEvent, lambda c,e,n=node: self.onChannelsNamesModified(n))
       self.onChannelsNamesModified(node)
     elif subname == "DTT":
       self._parameterNode.SetNodeReferenceID("DistanceToTargetTransform", node.GetID())
     elif subname == "RecordingSite":
       self._parameterNode.SetNodeReferenceID("RecordingSiteMarkups", node.GetID())
       node.GetDisplayNode().SetVisibility(0)
-      # self.addObserver(node, node.PointAddedEvent, self.updateTrajectoriesData)
     elif isinstance(node,slicer.vtkMRMLTextNode):
       self.logic.addFeature(subname, node.GetID())
       self.ui.featuresTableWidget.addRowAndSetVisibility()
@@ -301,8 +297,8 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.unlinkedChannelsListWidget.addItems([ch for ch in unlinkedChannels if ch != ""])
 
     transformsAvailable = bool(self._parameterNode.GetNodeReference("DistanceToTargetTransform") and self._parameterNode.GetNodeReference("TrajectoryTransform"))
-    self.ui.layoutToggleFrame.enabled            = transformsAvailable
-    self.ui.microElectrodeLayoutFrame.enabled    = transformsAvailable
+    self.ui.trajectoryPresetComboBox.enabled = transformsAvailable
+    self.ui.microElectrodeLayoutFrame.enabled = transformsAvailable
     self.ui.stimulationCollapsibleButton.enabled = transformsAvailable and hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI')
 
     featureNames = self._parameterNode.GetParameter("FeatureNames").split(",")
@@ -350,8 +346,8 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.logic.initializeTrajectory(N, self._parameterNode.GetNodeReferenceID("DistanceToTargetTransform"), linkChannelName)
     else:
       toolButton = getattr(self.ui, 'METoolButton_'+str(N))
-      unlinkedChannel = toolButton.toolTip
-      if toolButton.toolTip != str(N):
+      unlinkedChannel = toolButton.toolTip.replace('<p>','').replace('</p>','')
+      if unlinkedChannel != str(N):
         unlinkedChannels = self._parameterNode.GetParameter("UnlinkedChannels").split(",")
         unlinkedChannels.append(unlinkedChannel)
         self._parameterNode.SetParameter("UnlinkedChannels", ",".join(unlinkedChannels))
@@ -383,13 +379,27 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.logic.VTASource = None
       self.ui.amplitudeRadiusLabel.setText('-')
         
-  def getPointsFromNode(self,recordingSitesNode):
-    samplePoints = vtk.vtkPoints()
-    pos = np.zeros(3)
-    for i in range(recordingSitesNode.GetNumberOfControlPoints()):
-      recordingSitesNode.GetNthFiducialPosition(i,pos)
-      samplePoints.InsertNextPoint(pos)
-    return samplePoints
+  def setTrajectoryLayoutPreset(self, text):
+    if text == "Cross (x)":
+      enabledList=[1,0,1,0,1,0,1,0,1]
+    elif text == "Plus (+)":
+      enabledList=[0,1,0,1,1,1,0,1,0]
+    elif text == "Center (.)":
+      enabledList=[0,0,0,0,1,0,0,0,0]
+    if text != "Select...":
+      self.setMELayout(enabledList)
+    self.ui.trajectoryPresetComboBox.setCurrentText("Select...")
+  
+  def trajectoryVisualizationChanged(self):
+    for i in range(self.ui.trajectoryVisualizationComboBox.model().rowCount()):
+      index = self.ui.trajectoryVisualizationComboBox.model().index(i,0)
+      if index.data() == 'Model':
+        name = 'microElectrodeModel'
+      elif index.data() == 'Line':
+        name = 'trajectoryLine'
+      elif index.data() == 'Tip':
+        name = 'tipFiducial'
+      self.logic.setMEVisibility(name, bool(self.ui.trajectoryVisualizationComboBox.checkState(index)))
 
   def updateStimulationTransform(self):
     if not self.logic.VTASource:
@@ -486,9 +496,6 @@ class LeadORLogic(ScriptedLoadableModuleLogic):
       shNode.RemoveItem(IDs.GetId(i))
     shNode.RemoveItem(self.trajectories[trajectoryName].folderID)
     del self.trajectories[trajectoryName]
-    channelName = self.trajectoriesChannelsNames[trajectoryName]
-    self.trajectoriesChannelsNames[trajectoryName] = None
-    return channelName
 
   def updateTrajectoryModel(self, channelName, samplePoints, values):
     for trajectory in self.trajectories.values():

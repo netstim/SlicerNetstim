@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>501</width>
-    <height>698</height>
+    <width>466</width>
+    <height>694</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -118,97 +118,128 @@
      </property>
      <layout class="QHBoxLayout" name="horizontalLayout_2">
       <item>
-       <widget class="QTabWidget" name="tabWidget">
+       <widget class="QFrame" name="frame">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
           <horstretch>2</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
-        <property name="currentIndex">
-         <number>0</number>
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>145</height>
+         </size>
         </property>
-        <widget class="QWidget" name="tab">
-         <attribute name="title">
-          <string>Visualization</string>
-         </attribute>
-         <layout class="QVBoxLayout" name="verticalLayout_2">
-          <item>
-           <widget class="QFrame" name="layoutToggleFrame_2">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
+        <property name="frameShape">
+         <enum>QFrame::NoFrame</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Plain</enum>
+        </property>
+        <layout class="QFormLayout" name="formLayout_3">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_2">
+           <property name="text">
+            <string>Visualization: </string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="ctkCheckableComboBox" name="trajectoryVisualizationComboBox">
+           <property name="currentText">
+            <string>Model</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>Model</string>
             </property>
-            <property name="frameShape">
-             <enum>QFrame::StyledPanel</enum>
+           </item>
+           <item>
+            <property name="text">
+             <string>Line</string>
             </property>
-            <property name="frameShadow">
-             <enum>QFrame::Raised</enum>
+           </item>
+           <item>
+            <property name="text">
+             <string>Tip</string>
             </property>
-            <layout class="QVBoxLayout" name="verticalLayout_3">
-             <item>
-              <widget class="QCheckBox" name="MEModelVisCheckBox">
-               <property name="text">
-                <string>Model</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="MELineVisCheckBox">
-               <property name="text">
-                <string>Line</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="METipVisCheckBox">
-               <property name="text">
-                <string>Tip</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-        <widget class="QWidget" name="tab_2">
-         <attribute name="title">
-          <string>Channels</string>
-         </attribute>
-         <layout class="QVBoxLayout" name="verticalLayout_4">
-          <item>
-           <widget class="QListWidget" name="unlinkedChannelsListWidget">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Ignored" vsizetype="Ignored">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
+           </item>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_4">
+           <property name="text">
+            <string>Presets: </string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QComboBox" name="trajectoryPresetComboBox">
+           <item>
+            <property name="text">
+             <string>Select...</string>
             </property>
-            <property name="selectionMode">
-             <enum>QAbstractItemView::MultiSelection</enum>
+           </item>
+           <item>
+            <property name="text">
+             <string>Center (.)</string>
             </property>
-            <property name="selectionBehavior">
-             <enum>QAbstractItemView::SelectItems</enum>
+           </item>
+           <item>
+            <property name="text">
+             <string>Cross (x)</string>
             </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
+           </item>
+           <item>
+            <property name="text">
+             <string>Plus (+)</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_5">
+           <property name="text">
+            <string>Channels: </string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QListWidget" name="unlinkedChannelsListWidget">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Ignored" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="selectionMode">
+            <enum>QAbstractItemView::MultiSelection</enum>
+           </property>
+           <property name="selectionBehavior">
+            <enum>QAbstractItemView::SelectItems</enum>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
       <item>
        <widget class="QFrame" name="microElectrodeLayoutFrame">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
           <horstretch>1</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>150</height>
+         </size>
+        </property>
         <property name="frameShape">
-         <enum>QFrame::StyledPanel</enum>
+         <enum>QFrame::NoFrame</enum>
         </property>
         <property name="frameShadow">
          <enum>QFrame::Raised</enum>
@@ -659,84 +690,6 @@ QToolButton::menu-indicator {
         </layout>
        </widget>
       </item>
-      <item>
-       <widget class="ctkExpandButton" name="MELayoutButton"/>
-      </item>
-      <item>
-       <widget class="QFrame" name="layoutToggleFrame">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="frameShape">
-         <enum>QFrame::StyledPanel</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Raised</enum>
-        </property>
-        <layout class="QVBoxLayout" name="verticalLayout_5">
-         <item>
-          <widget class="QPushButton" name="MECenterLayoutPushButton">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>24</width>
-             <height>24</height>
-            </size>
-           </property>
-           <property name="text">
-            <string>.</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="MEXLayoutPushButton">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>24</width>
-             <height>24</height>
-            </size>
-           </property>
-           <property name="text">
-            <string>x</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="MEPlusLayoutPushButton">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>24</width>
-             <height>24</height>
-            </size>
-           </property>
-           <property name="text">
-            <string>+</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
      </layout>
     </widget>
    </item>
@@ -884,15 +837,15 @@ QToolButton::menu-indicator {
  </widget>
  <customwidgets>
   <customwidget>
+   <class>ctkCheckableComboBox</class>
+   <extends>QComboBox</extends>
+   <header>ctkCheckableComboBox.h</header>
+  </customwidget>
+  <customwidget>
    <class>ctkCollapsibleButton</class>
    <extends>QWidget</extends>
    <header>ctkCollapsibleButton.h</header>
    <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>ctkExpandButton</class>
-   <extends>QToolButton</extends>
-   <header>ctkExpandButton.h</header>
   </customwidget>
   <customwidget>
    <class>ctkSliderWidget</class>
@@ -968,22 +921,6 @@ QToolButton::menu-indicator {
     <hint type="destinationlabel">
      <x>179</x>
      <y>73</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>MELayoutButton</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>layoutToggleFrame</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>406</x>
-     <y>285</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>439</x>
-     <y>285</y>
     </hint>
    </hints>
   </connection>
