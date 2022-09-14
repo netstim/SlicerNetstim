@@ -56,7 +56,7 @@ class Feature():
 #
 
 class Trajectory(VTKObservationMixin):
-  
+
   def __init__(self, N, distanceToTargetTransformID):
     VTKObservationMixin.__init__(self)
 
@@ -115,10 +115,10 @@ class Trajectory(VTKObservationMixin):
     shNode.SetItemParent(shNode.GetItemByDataNode(self.traceModel), self.folderID)
 
     # observers
-  
+
     # add fiducial every time the transform moves
     # self.addObserver(self.translationTransform, slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModified)
-    # update trace model every time the trace fiducials are modified 
+    # update trace model every time the trace fiducials are modified
     # self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointAddedEvent,    self.updateModelFromFiducial)
     # self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.updateModelFromFiducial)
 
@@ -312,7 +312,7 @@ class Trajectory(VTKObservationMixin):
     self.traceModel.GetDisplayNode().SetAutoScalarRange(False)
     self.traceModel.GetDisplayNode().SetScalarRange(0.0,1.0)
     self.traceModel.Modified()
-    return 
+    return
 
   def updateTubeRadiusAndColor(self, samplePoints, valuesArray):
     matrix = vtk.vtkMatrix4x4()
@@ -392,7 +392,7 @@ class VTASource():
       node.SetAndObserveTransformNodeID(transformNodeID)
     slicer.util.getNode(transformNodeID).AddObserver(slicer.vtkMRMLTransformNode.TransformModifiedEvent, lambda c,e: self.transformModified())
     self.transformModified()
-    
+
   def transformModified(self):
     p = [0]*3
     self.markupsNode.GetNthControlPointPositionWorld(0,p)
@@ -419,8 +419,9 @@ class VTASource():
     return sphereFun
 
   def createROI(self):
-    ROINode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLAnnotationROINode')
-    ROINode.SetDisplayVisibility(0)
+    ROINode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsROINode')
+    ROINode.CreateDefaultDisplayNodes()
+    ROINode.GetDisplayNode().SetVisibility(False)
     return ROINode
 
   def createVTAModel(self):
@@ -435,8 +436,9 @@ class VTASource():
   def setFibersVisibility(self, state):
     if slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLFiberBundleNode'):
       fiberBundleNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLFiberBundleNode')
-      fiberBundleNode.SetAndObserveAnnotationNodeID(self.ROINode.GetID())
-      fiberBundleNode.SetSelectWithAnnotation(True)
+      # TODO: test with SlicerDMRI extension after https://github.com/SlicerDMRI/SlicerDMRI/issues/158 is resolved
+      fiberBundleNode.SetAndObserveROINodeID(self.ROINode.GetID())
+      fiberBundleNode.SetSelectWithROI(True)
       fiberBundleNode.GetDisplayNode().SetVisibility(state)
       fiberBundleNode.GetExtractFromROI().SetImplicitFunction(self.sphereFunction)
 
