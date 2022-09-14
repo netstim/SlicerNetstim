@@ -1,8 +1,55 @@
 import os
 import slicer, vtk
 import numpy as np
+from io import StringIO
 
 from slicer.util import VTKObservationMixin
+
+import LeadOR
+
+#
+# Feature
+#
+
+class Feature():
+
+  def __init__(self, featureName, featureNodeID):
+    self.Name = featureName
+    self.sourceNodeID = featureNodeID
+    self.MapTo = ''
+    self.Visible = True
+
+  def setMapTo(self, mapToText):
+    self.MapTo = mapToText
+
+  def setVisible(self, visible):
+    self.Visible = visible
+    for trajectory in LeadOR.LeadORLogic().trajectories.values():
+      if self.MapTo == "TubeRadiusAndColor":
+        trajectory.traceModel.GetDisplayNode().SetVisibility(visible)
+
+  def update(self, caller=None, event=None):
+    sourceText = slicer.util.getNode(self.sourceNodeID).GetText()
+    trajectoryNames = sourceText.splitlines()[0].split(",")[1:]
+    data = np.genfromtxt(StringIO(sourceText), delimiter=',', skip_header=1)
+    # get points
+    recordingSitesIDs = np.array(data[:,0], dtype=int)
+    recordingSitePoints = np.zeros((len(recordingSitesIDs),3))
+    for i,recordingSiteID in enumerate(recordingSitesIDs):
+      recordingSitePoints[i,:] = self.getRecordingSitePointFromID(recordingSiteID)
+    # update trajectories
+    for i,trajectoryName in enumerate(trajectoryNames):
+      if trajectoryName in LeadOR.LeadORLogic().trajectories.keys():
+        trajectory = LeadOR.LeadORLogic().trajectories[trajectoryName]
+        featureValues = data[:,i+1].squeeze()
+        if self.MapTo == "TubeRadiusAndColor":
+          trajectory.updateTubeRadiusAndColor(recordingSitePoints, featureValues)
+
+  def getRecordingSitePointFromID(self, id):
+    node = LeadOR.LeadORLogic().getParameterNode().GetNodeReference('RecordingSiteMarkups')
+    for i in range(node.GetNumberOfControlPoints()):
+      if int(node.GetNthControlPointLabel(i)) == id:
+        return node.GetNthControlPointPosition(i)
 
 #
 # Trajectory
@@ -14,7 +61,9 @@ class Trajectory(VTKObservationMixin):
     VTKObservationMixin.__init__(self)
 
     self.trajectoryNumber = N
-    self.alphaOmegaChannelNode = None
+    self.AlphaOmegaChannelName = None
+
+    planningTransformID = slicer.util.getNode(distanceToTargetTransformID).GetTransformNodeID()
 
     # create folder to store ME nodes
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
@@ -45,20 +94,21 @@ class Trajectory(VTKObservationMixin):
     shNode.SetItemParent(shNode.GetItemByDataNode(self.tipFiducial), self.folderID)
 
     # trace fiducials
-    self.traceFiducials = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
-    self.traceFiducials.SetName("Trace Fiducial - ME: " + str(N))
-    self.traceFiducials.GetDisplayNode().SetVisibility(0)
-    shNode.SetItemParent(shNode.GetItemByDataNode(self.traceFiducials), self.folderID)
+    # self.traceFiducials = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    # self.traceFiducials.SetName("Trace Fiducial - ME: " + str(N))
+    # self.traceFiducials.GetDisplayNode().SetVisibility(0)
+    # shNode.SetItemParent(shNode.GetItemByDataNode(self.traceFiducials), self.folderID)
 
     # cluster fiducials
-    self.clusterFiducials = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
-    self.clusterFiducials.SetName("Cluster Fiducial - ME: " + str(N))
-    self.clusterFiducials.GetDisplayNode().SetVisibility(0)
-    shNode.SetItemParent(shNode.GetItemByDataNode(self.clusterFiducials), self.folderID)
+    # self.clusterFiducials = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    # self.clusterFiducials.SetName("Cluster Fiducial - ME: " + str(N))
+    # self.clusterFiducials.GetDisplayNode().SetVisibility(0)
+    # shNode.SetItemParent(shNode.GetItemByDataNode(self.clusterFiducials), self.folderID)
 
     # trace model
     self.traceModel = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
     self.traceModel.SetName("Trace Model - ME: " + str(N))
+    self.traceModel.SetAndObserveTransformNodeID(planningTransformID)
     self.traceModel.CreateDefaultDisplayNodes()
     self.traceModel.GetDisplayNode().SetAndObserveColorNodeID(slicer.util.getNode('Viridis').GetID())
     self.traceModel.GetDisplayNode().ScalarVisibilityOn()
@@ -67,10 +117,10 @@ class Trajectory(VTKObservationMixin):
     # observers
   
     # add fiducial every time the transform moves
-    self.addObserver(self.translationTransform, slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModified)
+    # self.addObserver(self.translationTransform, slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModified)
     # update trace model every time the trace fiducials are modified 
-    self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointAddedEvent,    self.updateModelFromFiducial)
-    self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.updateModelFromFiducial)
+    # self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointAddedEvent,    self.updateModelFromFiducial)
+    # self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.updateModelFromFiducial)
 
 
   def setAlphaOmegaChannelNode(self, channelNode):
@@ -263,6 +313,54 @@ class Trajectory(VTKObservationMixin):
     self.traceModel.GetDisplayNode().SetScalarRange(0.0,1.0)
     self.traceModel.Modified()
     return 
+
+  def updateTubeRadiusAndColor(self, samplePoints, valuesArray):
+    matrix = vtk.vtkMatrix4x4()
+    self.translationTransform.GetMatrixTransformToParent(matrix)
+    transformedPoint = np.zeros(4)
+    samplePointsVTK = vtk.vtkPoints()
+    for i in range(samplePoints.shape[0]):
+      matrix.MultiplyPoint(np.append(samplePoints[i,:],1.0), transformedPoint)
+      samplePointsVTK.InsertNextPoint(transformedPoint[:-1])
+    # array to vtk
+    valuesMedian = np.median(valuesArray[:min(len(valuesArray),5)])
+    vtkValuesArray = vtk.vtkDoubleArray()
+    vtkValuesArray.SetName('values')
+    for value in valuesArray:
+      rel_val_from_cero = max((value / valuesMedian) - 1, 0.1)
+      rel_val_from_cero_to_one = min(rel_val_from_cero / 2.0, 1) # values greater than three times the median are caped to one
+      vtkValuesArray.InsertNextTuple((rel_val_from_cero_to_one,))
+    # line source
+    polyLineSource = vtk.vtkPolyLineSource()
+    polyLineSource.SetPoints(samplePointsVTK)
+    polyLineSource.Update()
+    # poly data
+    polyData = polyLineSource.GetOutput()
+    polyData.GetPointData().AddArray(vtkValuesArray)
+    polyData.GetPointData().SetScalars(vtkValuesArray)
+    # run tube filter
+    tubeFilter = vtk.vtkTubeFilter()
+    tubeFilter.SetInputData(polyData)
+    tubeFilter.SetVaryRadiusToVaryRadiusByAbsoluteScalar()
+    tubeFilter.SetNumberOfSides(16)
+    tubeFilter.CappingOn()
+    tubeFilter.Update()
+    # smooth
+    smoothFilter = vtk.vtkSmoothPolyDataFilter()
+    smoothFilter.SetInputData(tubeFilter.GetOutput())
+    smoothFilter.SetNumberOfIterations(2)
+    smoothFilter.SetRelaxationFactor(0.5)
+    smoothFilter.FeatureEdgeSmoothingOff()
+    smoothFilter.BoundarySmoothingOn()
+    smoothFilter.Update()
+    # update
+    self.traceModel.SetAndObservePolyData(smoothFilter.GetOutput())
+    self.traceModel.GetDisplayNode().SetActiveScalarName('values')
+    self.traceModel.GetDisplayNode().SetAutoScalarRange(False)
+    self.traceModel.GetDisplayNode().SetScalarRange(0.0,1.0)
+    self.traceModel.Modified()
+    return 
+
 
 
 #
