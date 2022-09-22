@@ -90,6 +90,40 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.layout.addWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
 
+    # IGTLink
+    if hasattr(slicer.modules,'openigtlinkif'):
+      try:
+        w = slicer.modules.openigtlinkif.createNewWidgetRepresentation()
+        connectorListFrame = next(filter(lambda c: c.name=="ConnectorListFrame", w.children()))
+        # Get ListView and ButtonFrame
+        connectorListView = next(filter(lambda c: c.name=="ConnectorListView", connectorListFrame.children()))
+        connectorButtonFrame = next(filter(lambda c: c.name=="ConnectorButtonFrame", connectorListFrame.children()))
+        # Add 'Active' checkbox to connector ButtonFrame
+        connectorPropertyWidget = next(filter(lambda c: c.name=="ConnectorPropertyWidget", connectorListFrame.children()))
+        connectorPropertyFrame = next(filter(lambda c: c.name=="ConnectorPropertyFrame", connectorPropertyWidget.children()))
+        connectorStateCheckBox = next(filter(lambda c: c.name=="ConnectorStateCheckBox", connectorPropertyFrame.children()))
+        connectorButtonFrame.layout().addWidget(connectorStateCheckBox)
+        # Add custom button to go to module
+        goToModuleButton = qt.QPushButton('Go To Module')
+        goToModuleButton.clicked.connect(lambda: slicer.util.mainWindow().moduleSelector().selectModule('OpenIGTLinkIF'))
+        connectorButtonFrame.layout().addWidget(goToModuleButton)
+        # Add ListView and ButtonFrame to collapsible button
+        self.ui.IGTLinkFrame.setLayout(qt.QVBoxLayout())
+        self.ui.IGTLinkFrame.layout().addWidget(connectorListView)
+        self.ui.IGTLinkFrame.layout().addWidget(connectorButtonFrame)
+        # Adjust view
+        for i in range(4):
+          connectorListView.header().setSectionResizeMode(i, qt.QHeaderView.Stretch)
+      except:
+        self.ui.IGTLinkCollapsibleButton.enabled = False
+        self.ui.IGTLinkCollapsibleButton.collapsed = True
+        self.ui.IGTLinkCollapsibleButton.setToolTip('Unable to set up OpenIGTLinkIF. Use the module directly.')
+    else:
+      self.ui.IGTLinkCollapsibleButton.enabled = False
+      self.ui.IGTLinkCollapsibleButton.collapsed = True
+      self.ui.IGTLinkCollapsibleButton.setToolTip('OpenIGTLinkIF Module required')
+
+    # Stimulation
     if hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI'):
       self.ui.stimulationCollapsibleButton.enabled = True
     else:
