@@ -582,6 +582,20 @@ class LeadORTest(ScriptedLoadableModuleTest):
   def setUp(self):
     """ Do whatever is needed to reset the state - typically a scene clear will be enough.
     """
+    # Close Open-Ephys
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    result = sock.connect_ex(('127.0.0.1',37497))
+    if result == 0:
+      import requests
+      url = "http://localhost:37497/api/"
+      requests.put(url + "status", json={"mode" : "IDLE"})
+      requests.put(url + "processors/103/config", json={"text" : "LOR IGTLDISCONNECT"})
+      requests.put(url + "window", json={"command" : "quit"})
+    # Clear Slicer
+    while slicer.mrmlScene.GetNumberOfNodesByClass("vtkMRMLIGTLConnectorNode"):
+      slicer.mrmlScene.GetNthNodeByClass(0,"vtkMRMLIGTLConnectorNode").Stop()
+      slicer.mrmlScene.RemoveNode(slicer.mrmlScene.GetNthNodeByClass(0,"vtkMRMLIGTLConnectorNode"))
     slicer.mrmlScene.Clear()
 
   def runTest(self):
@@ -606,33 +620,40 @@ class LeadORTest(ScriptedLoadableModuleTest):
 
     # Get/create input data
 
-    import SampleData
-    registerSampleData()
-    inputVolume = SampleData.downloadSample('LeadOR1')
-    self.delayDisplay('Loaded test data set')
+    # Currently use local data.
+    # This is sensitive data recorded during surgery.
+    # TODO: see how to share an example dataset for other users.
+    test_dir = "C:\\Users\\simon\\Desktop\\143UA53-test"
+    if not os.path.isdir(test_dir):
+      return
 
-    inputScalarRange = inputVolume.GetImageData().GetScalarRange()
-    self.assertEqual(inputScalarRange[0], 0)
-    self.assertEqual(inputScalarRange[1], 695)
+    slicer.util.loadScene(os.path.join(test_dir, "ORScene.mrb"))
 
-    outputVolume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
-    threshold = 100
+    # Add an IGTL Connector
+
+    n = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLIGTLConnectorNode')
+    n.SetServerPort(18944)
+    n.Start()
+
+    # Open Open-ephys instance with test config, connect to igtl and start aquisition
+
+    import subprocess
+    open_ephys_exe = "C:\\Users\\simon\\repo\\plugin-GUI\\Build\\Release\\open-ephys.exe"
+    open_ephys_config = os.path.join(test_dir, "LeadORConfig.xml")
+    subprocess.Popen([open_ephys_exe, open_ephys_config])
+
+    import requests
+    url = "http://localhost:37497/api/"
+    r = None
+    while (r == None) or (r.json()['mode'] != 'IDLE'):
+      r = requests.get(url + "status")
+    
+    r = requests.put(url + "processors/103/config", json={"text" : "LOR IGTLCONNECT 18944"})
+    self.assertEqual(r.json()['info'], 'Connected!')
+
+    r = requests.put(url + "status", json={"mode" : "ACQUIRE"})
 
     # Test the module logic
-
-    logic = LeadORLogic()
-
-    # Test algorithm with non-inverted threshold
-    logic.process(inputVolume, outputVolume, threshold, True)
-    outputScalarRange = outputVolume.GetImageData().GetScalarRange()
-    self.assertEqual(outputScalarRange[0], inputScalarRange[0])
-    self.assertEqual(outputScalarRange[1], threshold)
-
-    # Test algorithm with inverted threshold
-    logic.process(inputVolume, outputVolume, threshold, False)
-    outputScalarRange = outputVolume.GetImageData().GetScalarRange()
-    self.assertEqual(outputScalarRange[0], inputScalarRange[0])
-    self.assertEqual(outputScalarRange[1], inputScalarRange[1])
 
     self.delayDisplay('Test passed')
 
