@@ -201,6 +201,9 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # unlinkedChannelsBehaviour
     self.ui.unlinkedChannelsListWidget.itemSelectionChanged.connect(self.onUnlinkedChannelsSelectionChanged)
 
+    # Auto link trajectories
+    self.ui.linkTrajectoriesPushButton.clicked.connect(self.onLinkTrajectoriesPushButton)
+
     # Stimulation
     self.ui.stimulationActiveCheckBox.connect('toggled(bool)', self.onStimulationActivate)
     self.ui.stimulationAmplitudeSpinBox.valueChanged.connect(self.updateStimulationRadius)
@@ -337,6 +340,7 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.setDefaultResliceDriverPushButton.enabled = transformsAvailable
     self.ui.trajectoryPresetComboBox.enabled = transformsAvailable
     self.ui.microElectrodeLayoutFrame.enabled = transformsAvailable
+    self.ui.linkTrajectoriesPushButton.enabled = transformsAvailable
     self.ui.stimulationCollapsibleButton.enabled = transformsAvailable and hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI')
 
     featureNames = self._parameterNode.GetParameter("FeatureNames").split(",")
@@ -391,6 +395,25 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._parameterNode.SetParameter("UnlinkedChannels", ",".join(unlinkedChannels))
       toolButton.setToolTip('') 
       self.logic.removeTrajectory(unlinkedChannel)
+
+  def onLinkTrajectoriesPushButton(self):
+    wasModified = self._parameterNode.StartModify() # modify parameter node in a batch
+    # trajectory names in corresponding order
+    names = ['Anterio'+self.ui.leftMELabel.text, 'Anterior', 'Anterio'+self.ui.rightMELabel.text,\
+             self.ui.leftMELabel.text, 'Central', self.ui.rightMELabel.text,\
+             'Posterio'+self.ui.leftMELabel.text, 'Posterior', 'Posterio'+self.ui.rightMELabel.text]
+    names = [name.lower() for name in names]
+    # unlinked trajectories items
+    model = self.ui.unlinkedChannelsListWidget.model()
+    items = [self.ui.unlinkedChannelsListWidget.itemFromIndex(model.index(i,0)) for i in range(self.ui.unlinkedChannelsListWidget.count)]
+    # set up trajectory
+    for item in items:
+      itemText = item.data(qt.Qt.DisplayRole).lower()
+      N = names.index(itemText) if itemText in names else None
+      if N != None:
+        item.setSelected(1)
+        getattr(self.ui, 'METoolButton_'+str(N)).checked = True
+    self._parameterNode.EndModify(wasModified)
 
   def setMELayout(self, enabledList):
     for enabled, N in zip(enabledList, range(len(enabledList))):  
