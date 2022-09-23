@@ -251,6 +251,9 @@
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
+              <property name="toolTip">
+               <string>Available MER channels. To link a channel to a trajectory, first select a channel and then select the corresponding trajectory.</string>
+              </property>
               <property name="selectionMode">
                <enum>QAbstractItemView::MultiSelection</enum>
               </property>
