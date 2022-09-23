@@ -29,6 +29,8 @@ class Feature():
         trajectory.traceModel.GetDisplayNode().SetVisibility(visible)
 
   def update(self, caller=None, event=None):
+    if not LeadOR.LeadORLogic().getParameterNode().GetNodeReference('RecordingSiteMarkups'):
+      return
     sourceText = slicer.util.getNode(self.sourceNodeID).GetText()
     trajectoryNames = sourceText.splitlines()[0].split(",")[1:]
     data = np.genfromtxt(StringIO(sourceText), delimiter=',', skip_header=1)
