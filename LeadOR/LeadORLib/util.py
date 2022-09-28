@@ -8,38 +8,82 @@ from io import StringIO
 
 class Feature():
 
-  def __init__(self, sourceNodeID, recordingSitesMarkupsNodeID):
+  def __init__(self, name):
+    self.name = name
+  
+  def setRecordingSitesMarkupsNodeID(self, recordingSitesMarkupsNodeID):
+    recordingSitesNode = slicer.util.getNode(recordingSitesMarkupsNodeID)
+    self.recordingSitesIDs =  np.zeros((recordingSitesNode.GetNumberOfControlPoints(),))
+    self.recordingSitesPoints =  np.zeros((recordingSitesNode.GetNumberOfControlPoints(),3))
+    for i in range(recordingSitesNode.GetNumberOfControlPoints()):
+      self.recordingSitesIDs[i] = recordingSitesNode.GetNthControlPointLabel(i)
+      self.recordingSitesPoints[i,:] =  recordingSitesNode.GetNthControlPointPosition(i)
 
-    sourceText = slicer.util.getNode(sourceNodeID).GetText()
+  def addSourceNode(self, sourceNodeID, mapTo, visible):
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    id = shNode.GetItemByDataNode(slicer.util.getNode(sourceNodeID))
+    shNode.SetItemAttribute(id, 'LeadORFeature', self.name)
+    shNode.SetItemAttribute(id, 'MapTo', mapTo)
+    shNode.SetItemAttribute(id, 'Visible', str(int(bool(visible))))
+    nodeTypePossibilities = ['Tube', 'Markups']
+    for possibility in nodeTypePossibilities:
+      if mapTo.startswith(possibility):
+        self.nodeType = possibility
 
-    self.channelNames =  sourceText.splitlines()[0].split(",")[1:]
-    self.textData = np.genfromtxt(StringIO(sourceText), delimiter=',', skip_header=1)
+  def update(self):
+    sourceNodesData = self.getSourceNodesData()  
+    channelNames = set([ch for sourceNodeData in sourceNodesData for ch in sourceNodeData['channelNames']])
+    for channelName in channelNames:
+      trajectory = Trajectory.GetTrajectoryFromChannelName(channelName)
+      if trajectory is None:
+        continue
+      tubeRadiusValues = np.empty(np.shape(self.recordingSitesIDs))
+      tubeRadiusValues[:] = 1
+      tubeColorValues = np.empty(np.shape(self.recordingSitesIDs))
+      tubeColorValues[:] = np.nan
+      for sourceNodeData in sourceNodesData:
+        if channelName not in sourceNodeData['channelNames']:
+          continue
+        values = sourceNodeData['values'][sourceNodeData['channelNames'].index(channelName)]
+        if sourceNodeData['mapTo'] == 'TubeRadiusAndColor':
+          tubeRadiusValues = values
+          tubeColorValues = values
+        elif sourceNodeData['mapTo'] == 'TubeRadius':
+          tubeRadiusValues = values
+        elif sourceNodeData['mapTo'] == 'TubeColor':
+          tubeColorValues = values
+      trajectory.updateTubeModelFromValues(self.recordingSitesPoints, tubeRadiusValues, tubeColorValues)
+      slicer.util.getNode(trajectory.tubeModelNodeID).GetDisplayNode().SetVisibility(sourceNodeData['visible'])
+    
+  def getSourceNodesData(self):
+    sourceNodesData = []
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    vtk_ids = vtk.vtkIdList()
+    shNode.GetItemChildren(shNode.GetSceneItemID(), vtk_ids)
+    IDs = [vtk_ids.GetId(i) for i in range(vtk_ids.GetNumberOfIds())]
+    for ID in IDs:
+      if 'LeadORFeature' in shNode.GetItemAttributeNames(ID):
+        if shNode.GetItemAttribute(ID, 'MapTo').startswith(self.nodeType):
+          channelNames,channelValues = self.getChannelNamesValuesFromNodeText(shNode.GetItemDataNode(ID).GetText())
+          sourceNodesData.append({})
+          sourceNodesData[-1]['channelNames'] = channelNames
+          sourceNodesData[-1]['values'] = channelValues
+          sourceNodesData[-1]['visible'] = int(shNode.GetItemAttribute(ID, 'Visible'))
+          sourceNodesData[-1]['mapTo'] = shNode.GetItemAttribute(ID, 'MapTo')
+    return sourceNodesData
 
-    self.recordingSitesNode = slicer.util.getNode(recordingSitesMarkupsNodeID)
-    allRecordingSitePoints = self.initRecordingSitePoints()
-    self.validRecordingSitesIdx = ~np.any(np.isnan(allRecordingSitePoints),1)
-    self.recordingSitePoints = allRecordingSitePoints[self.validRecordingSitesIdx,:]
-
-  def getValuesForChannel(self, channelName):
-    allValues = self.textData[:,self.channelNames.index(channelName)+1].squeeze()
-    return allValues[self.validRecordingSitesIdx]
-
-  def getRecordingSitesPoints(self):
-    return self.recordingSitePoints
-
-  def initRecordingSitePoints(self):
-    recordingSitesIDs = np.array(self.textData[:,0], dtype=int)
-    recordingSitePoints = np.zeros((len(recordingSitesIDs),3))
-    for i,recordingSiteID in enumerate(recordingSitesIDs):
-      recordingSitePoints[i,:] = self.getRecordingSitePointFromID(recordingSiteID)
-    return recordingSitePoints
-
-  def getRecordingSitePointFromID(self, id):
-    for i in range(self.recordingSitesNode.GetNumberOfControlPoints()):
-      if int(self.recordingSitesNode.GetNthControlPointLabel(i)) == id:
-        return self.recordingSitesNode.GetNthControlPointPosition(i)
-
-
+  def getChannelNamesValuesFromNodeText(self, sourceText):
+    channelValues = []
+    channelNames = sourceText.splitlines()[0].split(",")[1:]
+    textData = np.genfromtxt(StringIO(sourceText), delimiter=',', skip_header=1)
+    recordingSitesIDs = np.array(textData[:,0], dtype=int).squeeze()
+    for channelName in channelNames:
+      textValues = textData[:,channelNames.index(channelName)+1].squeeze()
+      values = np.empty(np.shape(self.recordingSitesIDs))
+      values[:] = np.nan
+      values[np.where(np.in1d(self.recordingSitesIDs, recordingSitesIDs))[0]] = textValues[np.where(np.in1d(recordingSitesIDs, self.recordingSitesIDs))[0]]
+      channelValues.append(values)
+    return channelNames,channelValues
 
 #
 # Trajectory
@@ -201,7 +245,7 @@ class Trajectory():
     tubeModel.GetDisplayNode().ScalarVisibilityOn()
     self.addNodeAndAttributeToSHFolder(tubeModel, 'tubeModelNodeID')
 
-  def mapFeatureValuesToTubeRadiusAndColor(self, valuesArray, samplePoints, visible):
+  def updateTubeModelFromValues(self, samplePoints, tubeRadiusValues, tubeColorValues):
     matrix = vtk.vtkMatrix4x4()
     slicer.util.getNode(self.translationTransformNodeID).GetMatrixTransformToParent(matrix)
     transformedPoint = np.zeros(4)
@@ -210,21 +254,19 @@ class Trajectory():
       matrix.MultiplyPoint(np.append(samplePoints[i,:],1.0), transformedPoint)
       samplePointsVTK.InsertNextPoint(transformedPoint[:-1])
     # array to vtk
-    valuesMedian = np.median(valuesArray[:min(len(valuesArray),5)])
-    vtkValuesArray = vtk.vtkDoubleArray()
-    vtkValuesArray.SetName('values')
-    for value in valuesArray:
-      rel_val_from_cero = max((value / valuesMedian) - 1, 0.1)
-      rel_val_from_cero_to_one = min(rel_val_from_cero / 2.0, 1) # values greater than three times the median are caped to one
-      vtkValuesArray.InsertNextTuple((rel_val_from_cero_to_one,))
+    vtkRadiusValuesArray = self.getNormalizedVTKArray(tubeRadiusValues)
+    vtkRadiusValuesArray.SetName('radius')
+    vtkColorValuesArray = self.getNormalizedVTKArray(tubeColorValues)
+    vtkColorValuesArray.SetName('color')
     # line source
     polyLineSource = vtk.vtkPolyLineSource()
     polyLineSource.SetPoints(samplePointsVTK)
     polyLineSource.Update()
     # poly data
     polyData = polyLineSource.GetOutput()
-    polyData.GetPointData().AddArray(vtkValuesArray)
-    polyData.GetPointData().SetScalars(vtkValuesArray)
+    polyData.GetPointData().AddArray(vtkRadiusValuesArray)
+    polyData.GetPointData().AddArray(vtkColorValuesArray)
+    polyData.GetPointData().SetScalars(vtkRadiusValuesArray)
     # run tube filter
     tubeFilter = vtk.vtkTubeFilter()
     tubeFilter.SetInputData(polyData)
@@ -243,11 +285,19 @@ class Trajectory():
     # update
     tubeModelNode = slicer.util.getNode(self.tubeModelNodeID)
     tubeModelNode.SetAndObservePolyData(smoothFilter.GetOutput())
-    tubeModelNode.GetDisplayNode().SetActiveScalarName('values')
+    tubeModelNode.GetDisplayNode().SetActiveScalarName('color')
     tubeModelNode.GetDisplayNode().SetAutoScalarRange(False)
     tubeModelNode.GetDisplayNode().SetScalarRange(0.0,1.0)
-    tubeModelNode.GetDisplayNode().SetVisibility(visible)
     tubeModelNode.Modified()
+
+  def getNormalizedVTKArray(self, npArray):
+    valuesMedian = np.median(npArray[:min(len(npArray),5)])
+    vtkValuesArray = vtk.vtkDoubleArray()
+    for value in npArray:
+      rel_val_from_cero = max((value / valuesMedian) - 1, 0.1)
+      rel_val_from_cero_to_one = min(rel_val_from_cero / 2.0, 1) # values greater than three times the median are caped to one
+      vtkValuesArray.InsertNextTuple((rel_val_from_cero_to_one,))
+    return vtkValuesArray
 
   @classmethod
   def InitOrGetNthTrajectory(cls, trajectoryNumber):

@@ -595,15 +595,10 @@ class LeadORLogic(ScriptedLoadableModuleLogic):
   def setUpFeature(self, recordingSitesMarkupsNodeID=None, sourceNodeID=None, name='', mapTo='', visible=1):
     if recordingSitesMarkupsNodeID is None or sourceNodeID is None:
       return
-    feature = Feature(sourceNodeID, recordingSitesMarkupsNodeID)
-    for channelName in feature.channelNames:
-      trajectory = Trajectory.GetTrajectoryFromChannelName(channelName)
-      if trajectory is None:
-        continue
-      values = feature.getValuesForChannel(channelName)
-      points = feature.getRecordingSitesPoints()
-      if mapTo == "TubeRadiusAndColor":
-        trajectory.mapFeatureValuesToTubeRadiusAndColor(values, points, bool(visible))
+    feature = Feature(name)
+    feature.setRecordingSitesMarkupsNodeID(recordingSitesMarkupsNodeID)
+    feature.addSourceNode(sourceNodeID, mapTo, visible)
+    feature.update()
 
   def getVTARadius(self, I, pw=60): 
     # I: amplitude in Ampere

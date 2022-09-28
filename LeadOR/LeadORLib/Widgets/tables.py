@@ -67,7 +67,7 @@ class FeaturesTable:
     self.view.setModel(self.model)
     self.view.selectionModel().selectionChanged.connect(self.onSelectionChanged)
 
-    self.view.setItemDelegateForColumn(self.columnNames.index("MapTo"), ComboDelegate(self.model, ["","TubeRadiusAndColor","TubeRadius","TubeColor"]))
+    self.view.setItemDelegateForColumn(self.columnNames.index("MapTo"), ComboDelegate(self.model, ["TubeRadiusAndColor","TubeRadius","TubeColor"]))
 
   def onSelectionChanged(self):
     pass
