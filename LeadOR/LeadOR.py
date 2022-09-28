@@ -1,14 +1,14 @@
 import os
-from random import sample
 import unittest
 import logging
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
-import numpy as np
+import json
 
 import LeadORLib
 import LeadORLib.util
+from LeadORLib.util import Trajectory, Feature
 from LeadORLib.Widgets.tables import FeaturesTable
 
 #
@@ -98,7 +98,7 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Get ListView and ButtonFrame
         connectorListView = next(filter(lambda c: c.name=="ConnectorListView", connectorListFrame.children()))
         connectorButtonFrame = next(filter(lambda c: c.name=="ConnectorButtonFrame", connectorListFrame.children()))
-        # Add 'Active' checkbox to connector ButtonFrame
+        # Add "active" checkbox to connector ButtonFrame
         connectorPropertyWidget = next(filter(lambda c: c.name=="ConnectorPropertyWidget", connectorListFrame.children()))
         connectorPropertyFrame = next(filter(lambda c: c.name=="ConnectorPropertyFrame", connectorPropertyWidget.children()))
         connectorStateCheckBox = next(filter(lambda c: c.name=="ConnectorStateCheckBox", connectorPropertyFrame.children()))
@@ -123,17 +123,9 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.ui.IGTLinkCollapsibleButton.collapsed = True
       self.ui.IGTLinkCollapsibleButton.setToolTip('OpenIGTLinkIF Module required')
 
-    # Stimulation
-    if hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI'):
-      self.ui.stimulationCollapsibleButton.enabled = True
-    else:
-      self.ui.stimulationCollapsibleButton.enabled = False
-      self.ui.stimulationCollapsibleButton.collapsed = True
-      self.ui.stimulationCollapsibleButton.setToolTip('Updated SlicerDMRI Extension needed for stimulation module')
-      
     # Stim actions to ToolButton
     stimulationActionGroup = qt.QActionGroup(self.layout)
-    for child in self.ui.microElectrodeLayoutFrame.children():
+    for child in self.ui.trajectoriesLayoutFrame.children():
       if isinstance(child, qt.QToolButton):
         # stim
         stimulationAction = qt.QAction('Stim Source', self.layout)
@@ -142,14 +134,6 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         stimulationAction.toggled.connect(self.updateStimulationTransform)
         stimulationActionGroup.addAction(stimulationAction)
         child.addAction(stimulationAction)
-
-    # Features table
-    self.ui.featuresTableWidget = FeaturesTable(self.ui.featuresTableView)
-
-    # Visualization
-    for i in range(self.ui.trajectoryVisualizationComboBox.model().rowCount()):
-      index = self.ui.trajectoryVisualizationComboBox.model().index(i,0)
-      self.ui.trajectoryVisualizationComboBox.setCheckState(index, qt.Qt.Checked)
 
     # Set scene in MRML widgets. Make sure that in Qt designer the top-level qMRMLWidget's
     # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
@@ -166,45 +150,46 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.NodeAddedEvent, self.onNodeAdded)
+    self.addObserver(slicer.mrmlScene, slicer.mrmlScene.NodeRemovedEvent, self.onNodeRemoved)
 
-    # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
-    # (in the selected parameter node).
+    # Planning and distance to target
+    self.ui.planningTransformComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.planningTransformComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.guessSideFromTransform)
+    self.ui.planningTransformComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.setTransformsHierarchy)
+
     self.ui.distanceToTargetComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-    self.ui.trajectoryTransformComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-    self.ui.trajectoryTransformComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.guessSideFromTransform)
-
-    # transforms hierarchy
     self.ui.distanceToTargetComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.setTransformsHierarchy)
-    self.ui.trajectoryTransformComboBox.connect("currentNodeChanged(vtkMRMLNode*)", self.setTransformsHierarchy)
-
-    # reset ME when distance to target node change
-    self.ui.distanceToTargetComboBox.currentNodeChanged.connect(lambda b,enabledList=[0]*9: self.setMELayout(enabledList))
-
-    # distance to target slider
+    self.ui.distanceToTargetComboBox.currentNodeChanged.connect(lambda b,enabledList=[0]*9: self.setTrajectoryLayout(enabledList))
     self.ui.distanceToTargetComboBox.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.ui.distanceToTargetSlider.setMRMLTransformNode(node))
+    
     self.ui.distanceToTargetSlider.connect("valueChanged(double)", lambda value: self.ui.distanceToTargetSlider.applyTransformation(value))
-
-    # default reslice driver
     self.ui.setDefaultResliceDriverPushButton.clicked.connect(self.setDefaultResliceDriver)
 
-    # add connection for each micro electro toggle button 
-    for child in self.ui.microElectrodeLayoutFrame.children():
-      if isinstance(child, qt.QToolButton):
-        child.toggled.connect(lambda b,N=int(child.objectName.split('_')[-1]): self.microElectrodeLayoutToggle(b,N))
-
-    # micro electrode layouts
-    self.ui.trajectoryPresetComboBox.currentTextChanged.connect(lambda t: self.setTrajectoryLayoutPreset(t))
-
-    # ME visibility
+    # Trajectories
+    for i in range(self.ui.trajectoryVisualizationComboBox.model().rowCount()):
+      index = self.ui.trajectoryVisualizationComboBox.model().index(i,0)
+      self.ui.trajectoryVisualizationComboBox.setCheckState(index, qt.Qt.Checked)
     self.ui.trajectoryVisualizationComboBox.checkedIndexesChanged.connect(self.trajectoryVisualizationChanged)
 
-    # unlinkedChannelsBehaviour
-    self.ui.unlinkedChannelsListWidget.itemSelectionChanged.connect(self.onUnlinkedChannelsSelectionChanged)
+    for i in range(9):
+      toolButton = getattr(self.ui, 'TrajectoryToolButton_'+str(i))
+      toolButton.toggled.connect(lambda b,N=i: self.trajectoryLayoutToggle(b,N))
 
-    # Auto link trajectories
-    self.ui.linkTrajectoriesPushButton.clicked.connect(self.onLinkTrajectoriesPushButton)
+    self.ui.trajectoryPresetComboBox.currentTextChanged.connect(lambda t: self.setTrajectoryLayoutPreset(t))
+    self.ui.unlinkedChannelsListWidget.itemSelectionChanged.connect(self.onUnlinkedChannelsSelectionChanged)
+    self.ui.linkChannelsToTrajectoriesPushButton.clicked.connect(self.onLinkChannelsToTrajectoriesPushButton)
+
+    # Features
+    self.ui.featuresTableWidget = FeaturesTable(self.ui.featuresTableView, self.updateParameterNodeFromGUI)
 
     # Stimulation
+    if hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI'):
+      self.ui.stimulationCollapsibleButton.enabled = True
+    else:
+      self.ui.stimulationCollapsibleButton.enabled = False
+      self.ui.stimulationCollapsibleButton.collapsed = True
+      self.ui.stimulationCollapsibleButton.setToolTip('Updated SlicerDMRI Extension needed for stimulation module')
+      
     self.ui.stimulationActiveCheckBox.connect('toggled(bool)', self.onStimulationActivate)
     self.ui.stimulationAmplitudeSpinBox.valueChanged.connect(self.updateStimulationRadius)
 
@@ -237,8 +222,8 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     """
     # Parameter node will be reset, do not use it anymore
     self.setParameterNode(None)
-    # reset ME state
-    self.setMELayout([0]*9)
+    # reset trajectory state
+    self.setTrajectoryLayout([0]*9)
 
   def onSceneEndClose(self, caller, event):
     """
@@ -247,6 +232,36 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # If this module is shown while the scene is closed then recreate a new parameter node immediately
     if self.parent.isEntered:
       self.initializeParameterNode()
+
+  def initializeParameterNode(self):
+    """
+    Ensure parameter node exists and observed.
+    """
+    # Parameter node stores all user choices in parameter values, node selections, etc.
+    # so that when the scene is saved and reloaded, these settings are restored.
+
+    self.setParameterNode(self.logic.getParameterNode())
+
+  def setParameterNode(self, inputParameterNode):
+    """
+    Set and observe parameter node.
+    Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
+    """
+
+    if inputParameterNode:
+      self.logic.setDefaultParameters(inputParameterNode)
+
+    # Unobserve previously selected parameter node and add an observer to the newly selected.
+    # Changes of parameter node are observed so that whenever parameters are changed by a script or any other module
+    # those are reflected immediately in the GUI.
+    if self._parameterNode is not None:
+      self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+    self._parameterNode = inputParameterNode
+    if self._parameterNode is not None:
+      self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+
+    # Initial GUI update
+    self.updateGUIFromParameterNode()
 
   @vtk.calldata_type(vtk.VTK_OBJECT)
   def onNodeAdded(self, caller, event, calldata):
@@ -270,53 +285,42 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self._parameterNode.SetNodeReferenceID("RecordingSiteMarkups", node.GetID())
       node.GetDisplayNode().SetVisibility(0)
     elif isinstance(node,slicer.vtkMRMLTextNode):
-      self.logic.addFeature(subname, node.GetID())
-      self.ui.featuresTableWidget.addRowAndSetVisibility()
-      featureNames = self._parameterNode.GetParameter("FeatureNames").split(",")
-      featureNames.append(subname)
-      self._parameterNode.SetParameter("FeatureNames", ",".join(featureNames))
-      self.addObserver(node, node.TextModifiedEvent, self.logic.features[subname].update)
+      newFeature = {'name':subname, 'sourceNodeID':node.GetID(), 'mapTo':None, 'visible':1}
+      featuresList = json.loads(self._parameterNode.GetParameter("FeaturesJson"))
+      featuresList.append(newFeature)
+      self._parameterNode.SetParameter("FeaturesJson", json.dumps(featuresList))
+      self.addObserver(node, node.TextModifiedEvent, lambda c,e,n=node: self.onFeatureTextModified(n))
 
     self._parameterNode.EndModify(wasModified)
 
   def onChannelsNamesModified(self, channelsNamesNode):
     wasModified = self._parameterNode.StartModify()
-    self.setMELayout([0]*9)  # todo: what happens when changing channels
+    self.setTrajectoryLayout([0]*9)  # todo: what happens when changing channels
     self._parameterNode.SetParameter("UnlinkedChannels", channelsNamesNode.GetText())
     self._parameterNode.EndModify(wasModified)
 
+  def onFeatureTextModified(self, node):
+    featuresList = json.loads(self._parameterNode.GetParameter("FeaturesJson"))
+    for feature in featuresList:
+      if node.GetID() == feature['sourceNodeID']:
+        self.logic.setUpFeature(recordingSitesMarkupsNodeID=self._parameterNode.GetNodeReferenceID("RecordingSiteMarkups"), **feature)
+        return
 
-  def initializeParameterNode(self):
-    """
-    Ensure parameter node exists and observed.
-    """
-    # Parameter node stores all user choices in parameter values, node selections, etc.
-    # so that when the scene is saved and reloaded, these settings are restored.
-
-    self.setParameterNode(self.logic.getParameterNode())
-
-
-  def setParameterNode(self, inputParameterNode):
-    """
-    Set and observe parameter node.
-    Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
-    """
-
-    if inputParameterNode:
-      self.logic.setDefaultParameters(inputParameterNode)
-
-    # Unobserve previously selected parameter node and add an observer to the newly selected.
-    # Changes of parameter node are observed so that whenever parameters are changed by a script or any other module
-    # those are reflected immediately in the GUI.
+  @vtk.calldata_type(vtk.VTK_OBJECT)
+  def onNodeRemoved(self, caller, event, calldata):
     if self._parameterNode is not None:
-      self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
-    self._parameterNode = inputParameterNode
-    if self._parameterNode is not None:
-      self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+      wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
+    
+      if isinstance(calldata,slicer.vtkMRMLTextNode):
+        featuresList = json.loads(self._parameterNode.GetParameter("FeaturesJson"))
+        for i,feature in enumerate(featuresList):
+          if feature['sourceNodeID'] == calldata.GetID():
+            featuresList.pop(i)
+            break
+        self._parameterNode.SetParameter("FeaturesJson", json.dumps(featuresList))
 
-    # Initial GUI update
-    self.updateGUIFromParameterNode()
-
+      self._parameterNode.EndModify(wasModified)
+  
   def updateGUIFromParameterNode(self, caller=None, event=None):
     """
     This method is called whenever parameter node is changed.
@@ -330,23 +334,30 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._updatingGUIFromParameterNode = True
 
     self.ui.distanceToTargetComboBox.setCurrentNode(self._parameterNode.GetNodeReference("DistanceToTargetTransform"))
-    self.ui.trajectoryTransformComboBox.setCurrentNode(self._parameterNode.GetNodeReference("TrajectoryTransform"))
+    self.ui.planningTransformComboBox.setCurrentNode(self._parameterNode.GetNodeReference("TrajectoryTransform"))
     
-    self.ui.unlinkedChannelsListWidget.clear()
-    unlinkedChannels = self._parameterNode.GetParameter("UnlinkedChannels").split(",")
-    self.ui.unlinkedChannelsListWidget.addItems([ch for ch in unlinkedChannels if ch != ""])
-
     transformsAvailable = bool(self._parameterNode.GetNodeReference("DistanceToTargetTransform") and self._parameterNode.GetNodeReference("TrajectoryTransform"))
     self.ui.setDefaultResliceDriverPushButton.enabled = transformsAvailable
     self.ui.trajectoryPresetComboBox.enabled = transformsAvailable
-    self.ui.microElectrodeLayoutFrame.enabled = transformsAvailable
-    self.ui.linkTrajectoriesPushButton.enabled = transformsAvailable
+    self.ui.trajectoriesLayoutFrame.enabled = transformsAvailable
+    self.ui.linkChannelsToTrajectoriesPushButton.enabled = transformsAvailable
     self.ui.stimulationCollapsibleButton.enabled = transformsAvailable and hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI')
 
-    featureNames = self._parameterNode.GetParameter("FeatureNames").split(",")
-    featureNames.remove('') if '' in featureNames else None
-    for i,featureName in enumerate(featureNames):
-      self.ui.featuresTableWidget.updateNthRowFromFeature(i, self.logic.features[featureName])
+    trajectories = json.loads(self._parameterNode.GetParameter("TrajectoriesJson"))
+    for i,trajectory in enumerate(trajectories):
+      toolButton = getattr(self.ui, 'TrajectoryToolButton_'+str(i))
+      toolButton.setChecked(trajectory["active"])
+      toolButton.setToolTip(trajectory["channelName"])
+
+    linkedChannels = set([trajectory["channelName"] for trajectory in trajectories])
+    unlinkedChannels = set(self._parameterNode.GetParameter("UnlinkedChannels").split(","))
+    self.ui.unlinkedChannelsListWidget.clear()
+    self.ui.unlinkedChannelsListWidget.addItems(list(unlinkedChannels.difference(linkedChannels)))
+
+    featuresList = json.loads(self._parameterNode.GetParameter("FeaturesJson"))
+    self.ui.featuresTableWidget.updateNumberOfRows(len(featuresList))
+    for i,feature in enumerate(featuresList):
+      self.ui.featuresTableWidget.updateNthRowFromFeature(i, feature)
 
     # All the GUI updates are done
     self._updatingGUIFromParameterNode = False
@@ -362,7 +373,21 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
 
     self._parameterNode.SetNodeReferenceID("DistanceToTargetTransform", self.ui.distanceToTargetComboBox.currentNodeID)
-    self._parameterNode.SetNodeReferenceID("TrajectoryTransform", self.ui.trajectoryTransformComboBox.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("TrajectoryTransform", self.ui.planningTransformComboBox.currentNodeID)
+
+    trajectories = json.loads(self._parameterNode.GetParameter("TrajectoriesJson"))
+    for i,trajectory in enumerate(trajectories):
+      toolButton = getattr(self.ui, 'TrajectoryToolButton_'+str(i))
+      trajectory["active"] = toolButton.checked
+      trajectory["channelName"] = toolButton.toolTip.replace('<p>','').replace('</p>','')
+    self._parameterNode.SetParameter("TrajectoriesJson", json.dumps(trajectories))
+
+    featuresList = json.loads(self._parameterNode.GetParameter("FeaturesJson"))
+    for i,feature in enumerate(featuresList):
+      featureUpdated = self.ui.featuresTableWidget.updateFeatureFromNthRow(feature, i)
+      if featureUpdated:
+        self.logic.setUpFeature(recordingSitesMarkupsNodeID=self._parameterNode.GetNodeReferenceID("RecordingSiteMarkups"), **feature)
+    self._parameterNode.SetParameter("FeaturesJson", json.dumps(featuresList))
 
     self._parameterNode.EndModify(wasModified)
 
@@ -375,49 +400,78 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if len(selection)>1:
       selection[0].setSelected(0)
 
-  def microElectrodeLayoutToggle(self, enabled, N):
-    if enabled:
-      if len(self.ui.unlinkedChannelsListWidget.selectedItems()):
-        linkChannelName = self.ui.unlinkedChannelsListWidget.selectedItems()[0].text()
-        unlinkedChannels = self._parameterNode.GetParameter("UnlinkedChannels").split(",")
-        unlinkedChannels.remove(linkChannelName)
-        self._parameterNode.SetParameter("UnlinkedChannels", ",".join(unlinkedChannels))
-      else:
-        linkChannelName = str(N)
-      getattr(self.ui, 'METoolButton_'+str(N)).setToolTip(linkChannelName)
-      self.logic.initializeTrajectory(N, self._parameterNode.GetNodeReferenceID("DistanceToTargetTransform"), linkChannelName)
+  def trajectoryLayoutToggle(self, enabled, N):
+    if self._parameterNode is None or self._updatingGUIFromParameterNode:
+      return
+    if enabled and len(self.ui.unlinkedChannelsListWidget.selectedItems()):
+      linkChannelName = self.ui.unlinkedChannelsListWidget.selectedItems()[0].text()
     else:
-      toolButton = getattr(self.ui, 'METoolButton_'+str(N))
-      unlinkedChannel = toolButton.toolTip.replace('<p>','').replace('</p>','')
-      if unlinkedChannel != str(N):
-        unlinkedChannels = self._parameterNode.GetParameter("UnlinkedChannels").split(",")
-        unlinkedChannels.append(unlinkedChannel)
-        self._parameterNode.SetParameter("UnlinkedChannels", ",".join(unlinkedChannels))
-      toolButton.setToolTip('') 
-      self.logic.removeTrajectory(unlinkedChannel)
+      linkChannelName = ''
+    trajectories = json.loads(self._parameterNode.GetParameter("TrajectoriesJson"))
+    trajectories[N]["active"] = enabled
+    trajectories[N]["channelName"] = linkChannelName
+    self._parameterNode.SetParameter("TrajectoriesJson", json.dumps(trajectories))
+    self.setUpTrajectories()
 
-  def onLinkTrajectoriesPushButton(self):
-    wasModified = self._parameterNode.StartModify() # modify parameter node in a batch
-    # trajectory names in corresponding order
-    names = ['Anterio'+self.ui.leftMELabel.text, 'Anterior', 'Anterio'+self.ui.rightMELabel.text,\
-             self.ui.leftMELabel.text, 'Central', self.ui.rightMELabel.text,\
-             'Posterio'+self.ui.leftMELabel.text, 'Posterior', 'Posterio'+self.ui.rightMELabel.text]
-    names = [name.lower() for name in names]
-    # unlinked trajectories items
-    model = self.ui.unlinkedChannelsListWidget.model()
-    items = [self.ui.unlinkedChannelsListWidget.itemFromIndex(model.index(i,0)) for i in range(self.ui.unlinkedChannelsListWidget.count)]
-    # set up trajectory
-    for item in items:
-      itemText = item.data(qt.Qt.DisplayRole).lower()
-      N = names.index(itemText) if itemText in names else None
-      if N != None:
-        item.setSelected(1)
-        getattr(self.ui, 'METoolButton_'+str(N)).checked = True
-    self._parameterNode.EndModify(wasModified)
+  def onLinkChannelsToTrajectoriesPushButton(self):
+    if self._parameterNode is None or self._updatingGUIFromParameterNode:
+      return
+    trajectories = json.loads(self._parameterNode.GetParameter("TrajectoriesJson"))
+    standardChannels = ['Anterio'+self.ui.leftTrajectoryLabel.text, 'Anterior', 'Anterio'+self.ui.rightTrajectoryLabel.text,\
+                        self.ui.leftTrajectoryLabel.text, 'Central', self.ui.rightTrajectoryLabel.text,\
+                        'Posterio'+self.ui.leftTrajectoryLabel.text, 'Posterior', 'Posterio'+self.ui.rightTrajectoryLabel.text]
+    standardChannels = [standardChannel.lower() for standardChannel in standardChannels]
+    unlinkedChannels = self._parameterNode.GetParameter("UnlinkedChannels").split(",")
+    for unlinkedChannel in unlinkedChannels:
+      unlinkedChannelLower = unlinkedChannel.lower()
+      idx = standardChannels.index(unlinkedChannelLower) if unlinkedChannelLower in standardChannels else None
+      if idx is not None:
+        trajectories[idx]["active"] = 1
+        trajectories[idx]["channelName"] = unlinkedChannel       
+    self._parameterNode.SetParameter("TrajectoriesJson", json.dumps(trajectories))
+    self.setUpTrajectories()
+    
+  def setTrajectoryLayoutPreset(self, text):
+    if text == "Cross (x)":
+      enabledList=[1,0,1,0,1,0,1,0,1]
+    elif text == "Plus (+)":
+      enabledList=[0,1,0,1,1,1,0,1,0]
+    elif text == "Center (.)":
+      enabledList=[0,0,0,0,1,0,0,0,0]
+    if text != "Select...":
+      self.setTrajectoryLayout(enabledList)
+    self.ui.trajectoryPresetComboBox.setCurrentText("Select...")
 
-  def setMELayout(self, enabledList):
-    for enabled, N in zip(enabledList, range(len(enabledList))):  
-      getattr(self.ui, 'METoolButton_'+str(N)).checked = enabled
+  def setTrajectoryLayout(self, enabledList):
+    if self._parameterNode is None or self._updatingGUIFromParameterNode:
+      return
+    trajectories = json.loads(self._parameterNode.GetParameter("TrajectoriesJson"))
+    for N,enabled in enumerate(enabledList):
+      trajectories[N]["active"] = enabled
+      trajectories[N]["channelName"] = ''
+    self._parameterNode.SetParameter("TrajectoriesJson", json.dumps(trajectories))
+    self.setUpTrajectories()
+
+  def trajectoryVisualizationChanged(self):
+    if self._parameterNode is None or self._updatingGUIFromParameterNode:
+      return
+    trajectories = json.loads(self._parameterNode.GetParameter("TrajectoriesJson"))
+    for i in range(self.ui.trajectoryVisualizationComboBox.model().rowCount()):
+      index = self.ui.trajectoryVisualizationComboBox.model().index(i,0)
+      key = index.data().lower() + 'Visibility'
+      value = bool(self.ui.trajectoryVisualizationComboBox.checkState(index))
+      for trajectory in trajectories:
+        trajectory[key] = value
+    self._parameterNode.SetParameter("TrajectoriesJson", json.dumps(trajectories))
+    self.setUpTrajectories()
+
+  def setUpTrajectories(self):
+    if self._parameterNode is None or self._updatingGUIFromParameterNode:
+      return
+    distanceToTargetTransformID = self.ui.distanceToTargetComboBox.currentNodeID
+    trajectories = json.loads(self._parameterNode.GetParameter("TrajectoriesJson"))
+    for i,trajectory in enumerate(trajectories):
+      self.logic.setUpTrajectory(trajectoryNumber=i, distanceToTargetTransformID=distanceToTargetTransformID, **trajectory)
 
   def guessSideFromTransform(self, transformNode):
     if not transformNode:
@@ -427,8 +481,12 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     transformNode.GetMatrixTransformToWorld(matrix)
     matrix.MultiplyPoint([0.0, 0.0, 0.0, 1.0], currentPoint)
     guessRightSide = currentPoint[0] > 0
-    self.ui.leftMELabel.text = 'Medial' if guessRightSide else 'Lateral'  
-    self.ui.rightMELabel.text = 'Lateral' if guessRightSide else 'Medial' 
+    self.ui.leftTrajectoryLabel.text = 'Medial' if guessRightSide else 'Lateral'  
+    self.ui.rightTrajectoryLabel.text = 'Lateral' if guessRightSide else 'Medial' 
+
+  def setDefaultResliceDriver(self):
+    import StereotacticPlan
+    StereotacticPlan.StereotacticPlanLib.util.setDefaultResliceDriver(self._parameterNode.GetNodeReferenceID("DistanceToTargetTransform"))
 
   def onStimulationActivate(self, active):
     if active: 
@@ -438,45 +496,20 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     else:
       self.logic.VTASource.cleanup()
       self.logic.VTASource = None
-      self.ui.amplitudeRadiusLabel.setText('-')
-        
-  def setTrajectoryLayoutPreset(self, text):
-    if text == "Cross (x)":
-      enabledList=[1,0,1,0,1,0,1,0,1]
-    elif text == "Plus (+)":
-      enabledList=[0,1,0,1,1,1,0,1,0]
-    elif text == "Center (.)":
-      enabledList=[0,0,0,0,1,0,0,0,0]
-    if text != "Select...":
-      self.setMELayout(enabledList)
-    self.ui.trajectoryPresetComboBox.setCurrentText("Select...")
-  
-  def trajectoryVisualizationChanged(self):
-    for i in range(self.ui.trajectoryVisualizationComboBox.model().rowCount()):
-      index = self.ui.trajectoryVisualizationComboBox.model().index(i,0)
-      if index.data() == 'Model':
-        name = 'microElectrodeModel'
-      elif index.data() == 'Line':
-        name = 'trajectoryLine'
-      elif index.data() == 'Tip':
-        name = 'tipFiducial'
-      self.logic.setMEVisibility(name, bool(self.ui.trajectoryVisualizationComboBox.checkState(index)))
-
-  def setDefaultResliceDriver(self):
-    import StereotacticPlan
-    StereotacticPlan.StereotacticPlanLib.util.setDefaultResliceDriver(self._parameterNode.GetNodeReferenceID("DistanceToTargetTransform"))
+      self.ui.amplitudeRadiusLabel.setText('-')        
 
   def updateStimulationTransform(self):
     if not self.logic.VTASource:
       return
     # get current active stim
-    N = next(filter(lambda n: getattr(self.ui, 'METoolButton_'+str(n)).actions()[1].checked, range(9)), None)
-    if N is None or N not in self.logic.trajectories.keys():
+    N = next(filter(lambda n: getattr(self.ui, 'TrajectoryToolButton_'+str(n)).actions()[0].checked, range(9)), None)
+    trajectory = Trajectory.GetNthTrajectory(N)
+    if N is None or trajectory is None:
       self.ui.stimulationActiveCheckBox.checked = False
       qt.QMessageBox().warning(qt.QWidget(),'','Set a Stimulation Source')
       return
     # set transform
-    self.logic.VTASource.SetAndObserveTransformNodeID(self.logic.trajectories[N].translationTransform.GetID())
+    self.logic.VTASource.SetAndObserveTransformNodeID(trajectory.translationTransformNodeID)
 
   def updateStimulationRadius(self, value):
     if not self.logic.VTASource:
@@ -500,9 +533,6 @@ class LeadORLogic(ScriptedLoadableModuleLogic):
   Uses ScriptedLoadableModuleLogic base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
-
-  features = {}
-  trajectories = {}
 
   def __init__(self):
     """
@@ -536,51 +566,34 @@ class LeadORLogic(ScriptedLoadableModuleLogic):
       parameterNode.SetParameter("UnlinkedChannels", "")
     if not parameterNode.GetParameter("FeatureNames"):
       parameterNode.SetParameter("FeatureNames", "")
+    if not parameterNode.GetParameter("FeaturesJson"):
+      parameterNode.SetParameter("FeaturesJson", json.dumps([]))
+    if not parameterNode.GetParameter("TrajectoriesJson"):
+      parameterNode.SetParameter("TrajectoriesJson", json.dumps([{"active":0,"channelName":'',"modelVisibility":1,"lineVisibility":1,"tipVisibility":1}]*9))
 
-  def addFeature(self, featureName, featureNodeID):
-    self.features[featureName] = LeadORLib.util.Feature(featureName, featureNodeID)
+  def setUpTrajectory(self, trajectoryNumber, distanceToTargetTransformID, active=True, channelName='', modelVisibility=1, lineVisibility=1, tipVisibility=1):
+    if active:
+      trajectory = Trajectory.InitOrGetNthTrajectory(trajectoryNumber)
+      trajectory.setDistanceToTargetTransformID(distanceToTargetTransformID)
+      trajectory.setChannelName(channelName)
+      trajectory.setModelVisibility(modelVisibility)
+      trajectory.setLineVisibility(lineVisibility)
+      trajectory.setTipVisibility(tipVisibility)
+    else:
+      Trajectory.RemoveNthTrajectory(trajectoryNumber)
 
-  def setFeatureMapTo(self, featureName, featureMapTo):
-    if featureName in self.features.keys():
-      feature = self.features[featureName]
-      feature.setMapTo(featureMapTo)
-
-  def setFeatureVisibility(self, featureName, visible):
-    if featureName in self.features.keys():
-      feature = self.features[featureName]
-      feature.setVisible(visible)
-
-  def initializeTrajectory(self, N, distanceToTargetTransformID, linkChannelName):
-    self.trajectories[linkChannelName] = LeadORLib.util.Trajectory(N, distanceToTargetTransformID)
-  
-  def removeTrajectory(self, trajectoryName):
-    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-    IDs = vtk.vtkIdList()
-    shNode.GetItemChildren(self.trajectories[trajectoryName].folderID, IDs, True)
-    for i in range(IDs.GetNumberOfIds()):
-      shNode.RemoveItem(IDs.GetId(i))
-    shNode.RemoveItem(self.trajectories[trajectoryName].folderID)
-    del self.trajectories[trajectoryName]
-
-  def updateTrajectoryModel(self, channelName, samplePoints, values):
-    for trajectory in self.trajectories.values():
-      if getattr(trajectory, 'AlphaOmegaChannelName') == channelName:
-        trajectory.updateModelFromPointsValues(samplePoints, values)
-
-  def setNthTrajectoryAOChannelName(self, N, channelName):
-    if N not in self.trajectories.keys() or channelName == 'None':
+  def setUpFeature(self, recordingSitesMarkupsNodeID=None, sourceNodeID=None, name='', mapTo='', visible=1):
+    if recordingSitesMarkupsNodeID is None or sourceNodeID is None:
       return
-    self.trajectories[N].AlphaOmegaChannelName = channelName
-    
-  def getAOChannelNodeFromChannelName(self, channelName):
-    for i in range(slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLAlphaOmegaChannelNode')):
-      AONode = slicer.mrmlScene.GetNthNodeByClass(i,'vtkMRMLAlphaOmegaChannelNode')
-      if AONode.GetChannelName() == channelName:
-        return AONode
-
-  def setMEVisibility(self, modelType, visible):
-    for trajectory in self.trajectories.values():
-      getattr(trajectory, modelType).GetDisplayNode().SetVisibility3D(visible)
+    feature = Feature(sourceNodeID, recordingSitesMarkupsNodeID)
+    for channelName in feature.channelNames:
+      trajectory = Trajectory.GetTrajectoryFromChannelName(channelName)
+      if trajectory is None:
+        continue
+      values = feature.getValuesForChannel(channelName)
+      points = feature.getRecordingSitesPoints()
+      if mapTo == "TubeRadiusAndColor":
+        trajectory.mapFeatureValuesToTubeRadiusAndColor(values, points, bool(visible))
 
   def getVTARadius(self, I, pw=60): 
     # I: amplitude in Ampere
