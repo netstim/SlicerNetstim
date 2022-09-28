@@ -1,6 +1,4 @@
-from email.mime import base
-import enum
-import qt, ctk, slicer
+import qt
 
 class ComboDelegate(qt.QItemDelegate):
   def __init__(self, parent, comboItems):
@@ -8,11 +6,8 @@ class ComboDelegate(qt.QItemDelegate):
     self.comboItems = comboItems
 
   def createEditor(self, parent, option, index):
-    import LeadOR
-    logic = LeadOR.LeadORLogic()
     combo = qt.QComboBox(parent)
     combo.addItems(self.comboItems)
-    combo.currentTextChanged.connect(lambda text, feature=index.model().data(index.siblingAtColumn(0)): logic.setFeatureMapTo(feature, text))
     return combo
 
   def setEditorData(self, editor, index):
@@ -28,7 +23,9 @@ class ComboDelegate(qt.QItemDelegate):
 class customStandardItemModel(qt.QStandardItemModel):
   def __init__(self , *args, **kwargs):
     self.columnNames = kwargs["columnNames"]
+    self.updateFcn = kwargs["updateFcn"]
     del kwargs["columnNames"]
+    del kwargs["updateFcn"]
     super().__init__(*args, **kwargs)
 
   def flags(self, index):
@@ -41,13 +38,8 @@ class customStandardItemModel(qt.QStandardItemModel):
       return baseFlags | qt.Qt.ItemIsEditable
 
   def setData(self , *args, **kwargs):
-    index = args[0] if args else None
-    if isinstance(index, qt.QModelIndex) and args[-1] == qt.Qt.CheckStateRole:
-      featureName = index.model().data(index.siblingAtColumn(self.columnNames.index("Name")))
-      import LeadOR
-      logic = LeadOR.LeadORLogic()
-      logic.setFeatureVisibility(featureName, bool(args[1]))
     qt.QStandardItemModel.setData(self , *args, **kwargs)
+    self.updateFcn()
 
   def headerData(self,section,orientation,role):
     if section == 2:
@@ -61,11 +53,10 @@ class FeaturesTable:
 
   RowHeight = 25
 
-  def __init__(self,view):
-    # super().__init__()
+  def __init__(self, view, updateParameterNodeFromGUIFunction):
 
     self.columnNames = ["Name", "MapTo", "Visible"]
-    self.model = customStandardItemModel(0, len(self.columnNames), columnNames=self.columnNames)
+    self.model = customStandardItemModel(0, len(self.columnNames), columnNames=self.columnNames, updateFcn=updateParameterNodeFromGUIFunction)
 
     self.view = view
     self.view.setVisible(0)
@@ -95,13 +86,47 @@ class FeaturesTable:
       self.view.horizontalHeader().setSectionResizeMode(1, qt.QHeaderView.Stretch)
       self.view.horizontalHeader().setSectionResizeMode(2, qt.QHeaderView.ResizeToContents)
 
-  def updateNthRowFromFeature(self, rowN, feature):
-    for colN,attr in enumerate(self.columnNames):
-      index = self.model.index(rowN, colN)
-      val = getattr(feature,attr)
-      if colN == self.columnNames.index("Visible"):
-        val = qt.Qt.Checked if val else qt.Qt.Unchecked
+  def removeLastRowAndSetHeight(self):
+    self.model.removeRow(self.model.rowCount()-1)
+    self.view.setFixedHeight(self.view.height-self.RowHeight)
+
+  def updateNumberOfRows(self, N):
+    if N==0:
+      while (self.model.rowCount()):
+        self.removeLastRowAndSetHeight()
+    elif N>self.model.rowCount():
+      while (N>self.model.rowCount()):
+        self.addRowAndSetVisibility()
+    else:
+      while (N<self.model.rowCount()):
+        self.removeLastRowAndSetHeight()
+
+  def updateNthRowFromFeature(self, rowNumber, feature):
+    for columnNumber,columnName in enumerate(self.columnNames):
+      featureKey = self.stringToCammelCase(columnName)
+      value = feature[featureKey]
+      index = self.model.index(rowNumber, columnNumber)
+      if columnNumber == self.columnNames.index("Visible"):
+        value = qt.Qt.Checked if value else qt.Qt.Unchecked
         role = qt.Qt.CheckStateRole
       else:
         role = qt.Qt.DisplayRole
-      self.model.setData(index, val, role)
+      self.model.setData(index, value, role)
+
+  def updateFeatureFromNthRow(self, feature, rowNumber):
+    updated = False
+    for columnNumber,columnName in enumerate(self.columnNames):
+      index = self.model.index(rowNumber, columnNumber)
+      if columnNumber == self.columnNames.index("Visible"):
+        role = qt.Qt.CheckStateRole
+      else:
+        role = qt.Qt.DisplayRole
+      value = self.model.data(index, role)
+      featureKey = self.stringToCammelCase(columnName)
+      if feature[featureKey] != value:
+        feature[featureKey] = value
+        updated = True
+    return updated
+
+  def stringToCammelCase(self,str):
+    return str[0].lower() + str[1:]

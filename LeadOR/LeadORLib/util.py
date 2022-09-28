@@ -1,11 +1,6 @@
-import os
 import slicer, vtk
 import numpy as np
 from io import StringIO
-
-from slicer.util import VTKObservationMixin
-
-import LeadOR
 
 #
 # Feature
@@ -13,171 +8,106 @@ import LeadOR
 
 class Feature():
 
-  def __init__(self, featureName, featureNodeID):
-    self.Name = featureName
-    self.sourceNodeID = featureNodeID
-    self.MapTo = ''
-    self.Visible = True
+  def __init__(self, sourceNodeID, recordingSitesMarkupsNodeID):
 
-  def setMapTo(self, mapToText):
-    self.MapTo = mapToText
+    sourceText = slicer.util.getNode(sourceNodeID).GetText()
 
-  def setVisible(self, visible):
-    self.Visible = visible
-    for trajectory in LeadOR.LeadORLogic().trajectories.values():
-      if self.MapTo == "TubeRadiusAndColor":
-        trajectory.traceModel.GetDisplayNode().SetVisibility(visible)
+    self.channelNames =  sourceText.splitlines()[0].split(",")[1:]
+    self.textData = np.genfromtxt(StringIO(sourceText), delimiter=',', skip_header=1)
 
-  def update(self, caller=None, event=None):
-    if not LeadOR.LeadORLogic().getParameterNode().GetNodeReference('RecordingSiteMarkups'):
-      return
-    sourceText = slicer.util.getNode(self.sourceNodeID).GetText()
-    trajectoryNames = sourceText.splitlines()[0].split(",")[1:]
-    data = np.genfromtxt(StringIO(sourceText), delimiter=',', skip_header=1)
-    # get points
-    recordingSitesIDs = np.array(data[:,0], dtype=int)
+    self.recordingSitesNode = slicer.util.getNode(recordingSitesMarkupsNodeID)
+    allRecordingSitePoints = self.initRecordingSitePoints()
+    self.validRecordingSitesIdx = ~np.any(np.isnan(allRecordingSitePoints),1)
+    self.recordingSitePoints = allRecordingSitePoints[self.validRecordingSitesIdx,:]
+
+  def getValuesForChannel(self, channelName):
+    allValues = self.textData[:,self.channelNames.index(channelName)+1].squeeze()
+    return allValues[self.validRecordingSitesIdx]
+
+  def getRecordingSitesPoints(self):
+    return self.recordingSitePoints
+
+  def initRecordingSitePoints(self):
+    recordingSitesIDs = np.array(self.textData[:,0], dtype=int)
     recordingSitePoints = np.zeros((len(recordingSitesIDs),3))
     for i,recordingSiteID in enumerate(recordingSitesIDs):
       recordingSitePoints[i,:] = self.getRecordingSitePointFromID(recordingSiteID)
-    # update trajectories
-    for i,trajectoryName in enumerate(trajectoryNames):
-      if trajectoryName in LeadOR.LeadORLogic().trajectories.keys():
-        trajectory = LeadOR.LeadORLogic().trajectories[trajectoryName]
-        featureValues = data[:,i+1].squeeze()
-        if self.MapTo == "TubeRadiusAndColor":
-          trajectory.updateTubeRadiusAndColor(recordingSitePoints, featureValues)
+    return recordingSitePoints
 
   def getRecordingSitePointFromID(self, id):
-    node = LeadOR.LeadORLogic().getParameterNode().GetNodeReference('RecordingSiteMarkups')
-    for i in range(node.GetNumberOfControlPoints()):
-      if int(node.GetNthControlPointLabel(i)) == id:
-        return node.GetNthControlPointPosition(i)
+    for i in range(self.recordingSitesNode.GetNumberOfControlPoints()):
+      if int(self.recordingSitesNode.GetNthControlPointLabel(i)) == id:
+        return self.recordingSitesNode.GetNthControlPointPosition(i)
+
+
 
 #
 # Trajectory
 #
 
-class Trajectory(VTKObservationMixin):
-  
-  def __init__(self, N, distanceToTargetTransformID):
-    VTKObservationMixin.__init__(self)
+class Trajectory():
 
-    self.trajectoryNumber = N
-    self.AlphaOmegaChannelName = None
+  def __init__(self, N, fromFolderID=False):
 
-    planningTransformID = slicer.util.getNode(distanceToTargetTransformID).GetTransformNodeID()
-
-    # create folder to store ME nodes
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-    self.folderID = shNode.CreateFolderItem(shNode.GetSceneItemID(), "Micro Electrode " + str(N))
 
-    # translation transform from central ME
-    self.translationTransform = self.createTranslationTransform()
-    self.translationTransform.SetName("Translation Transform - ME: " + str(N))
-    self.translationTransform.SetAndObserveTransformNodeID(distanceToTargetTransformID)
-    shNode.SetItemParent(shNode.GetItemByDataNode(self.translationTransform), self.folderID)
+    if fromFolderID:
+      self.folderID = N
+      self.trajectoryNumber = shNode.GetItemAttribute(self.folderID, 'LeadORTrajectory')
+      self.channelName = shNode.GetItemAttribute(self.folderID, 'ChannelName')
+    else:
+      self.trajectoryNumber = N
+      self.channelName = ''
+      self.folderID = shNode.CreateFolderItem(shNode.GetSceneItemID(), "LeadOR Trajectory " + str(self.trajectoryNumber))
+      shNode.SetItemAttribute(self.folderID, 'LeadORTrajectory', str(self.trajectoryNumber))
+      shNode.SetItemAttribute(self.folderID, 'ChannelName', self.channelName)
+      transformID = self.createTranslationTransform()
+      self.createMEModel(transformID)
+      self.createTrajectoryLine(transformID)
+      self.createTipFiducial(transformID)
+      self.createTubeModel()
 
-    # 3D model
-    self.microElectrodeModel = self.createMEModel()
-    self.microElectrodeModel.SetName("ME Model - ME: " + str(N))
-    self.microElectrodeModel.SetAndObserveTransformNodeID(self.translationTransform.GetID())
-    shNode.SetItemParent(shNode.GetItemByDataNode(self.microElectrodeModel), self.folderID)
+    self.translationTransformNodeID = shNode.GetItemAttribute(self.folderID, 'translationTransformNodeID')
+    self.microElectrodeModelNodeID = shNode.GetItemAttribute(self.folderID, 'microElectrodeModelNodeID')
+    self.trajectoryLineNodeID = shNode.GetItemAttribute(self.folderID, 'trajectoryLineNodeID')
+    self.tipFiducialNodeID = shNode.GetItemAttribute(self.folderID, 'tipFiducialNodeID')
+    self.tubeModelNodeID = shNode.GetItemAttribute(self.folderID, 'tubeModelNodeID')
 
-    # line
-    self.trajectoryLine = self.createTrajectoryLine()
-    self.trajectoryLine.SetName("Trajectory Line - ME: " + str(N))
-    self.trajectoryLine.SetAndObserveTransformNodeID(self.translationTransform.GetID())
-    shNode.SetItemParent(shNode.GetItemByDataNode(self.trajectoryLine), self.folderID)
+    self.setNodeNames()
 
-    # tip
-    self.tipFiducial = self.createTipFiducial()
-    self.tipFiducial.SetName("Tip Fiducial - ME: " + str(N))
-    self.tipFiducial.SetAndObserveTransformNodeID(self.translationTransform.GetID())
-    shNode.SetItemParent(shNode.GetItemByDataNode(self.tipFiducial), self.folderID)
+  def setModelVisibility(self, visible):
+    slicer.util.getNode(self.microElectrodeModelNodeID).GetDisplayNode().SetVisibility3D(visible)
 
-    # trace fiducials
-    # self.traceFiducials = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
-    # self.traceFiducials.SetName("Trace Fiducial - ME: " + str(N))
-    # self.traceFiducials.GetDisplayNode().SetVisibility(0)
-    # shNode.SetItemParent(shNode.GetItemByDataNode(self.traceFiducials), self.folderID)
+  def setLineVisibility(self, visible):
+    slicer.util.getNode(self.trajectoryLineNodeID).GetDisplayNode().SetVisibility3D(visible)
 
-    # cluster fiducials
-    # self.clusterFiducials = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
-    # self.clusterFiducials.SetName("Cluster Fiducial - ME: " + str(N))
-    # self.clusterFiducials.GetDisplayNode().SetVisibility(0)
-    # shNode.SetItemParent(shNode.GetItemByDataNode(self.clusterFiducials), self.folderID)
+  def setTipVisibility(self, visible):
+    slicer.util.getNode(self.tipFiducialNodeID).GetDisplayNode().SetVisibility3D(visible)
 
-    # trace model
-    self.traceModel = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
-    self.traceModel.SetName("Trace Model - ME: " + str(N))
-    self.traceModel.SetAndObserveTransformNodeID(planningTransformID)
-    self.traceModel.CreateDefaultDisplayNodes()
-    self.traceModel.GetDisplayNode().SetAndObserveColorNodeID(slicer.util.getNode('Viridis').GetID())
-    self.traceModel.GetDisplayNode().ScalarVisibilityOn()
-    shNode.SetItemParent(shNode.GetItemByDataNode(self.traceModel), self.folderID)
+  def setDistanceToTargetTransformID(self, distanceToTargetTransformID):
+    planningTransformID = slicer.util.getNode(distanceToTargetTransformID).GetTransformNodeID()
+    slicer.util.getNode(self.translationTransformNodeID).SetAndObserveTransformNodeID(distanceToTargetTransformID)
+    slicer.util.getNode(self.tubeModelNodeID).SetAndObserveTransformNodeID(planningTransformID)
 
-    # observers
-  
-    # add fiducial every time the transform moves
-    # self.addObserver(self.translationTransform, slicer.vtkMRMLTransformNode.TransformModifiedEvent, self.onTransformModified)
-    # update trace model every time the trace fiducials are modified 
-    # self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointAddedEvent,    self.updateModelFromFiducial)
-    # self.addObserver(self.traceFiducials, slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.updateModelFromFiducial)
+  def setChannelName(self, channelName):
+    self.channelName = channelName
+    slicer.mrmlScene.GetSubjectHierarchyNode().SetItemAttribute(self.folderID, 'ChannelName', self.channelName)
+    self.setNodeNames()
 
+  def setNodeNames(self):
+    name = self.channelName if self.channelName != '' else str(self.trajectoryNumber)
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    shNode.SetItemName(self.folderID, "LeadOR Trajectory %s" % name)
+    slicer.util.getNode(self.translationTransformNodeID).SetName("%s: Translation Transform" % name)
+    slicer.util.getNode(self.microElectrodeModelNodeID).SetName("%s: ME Model" % name)
+    slicer.util.getNode(self.trajectoryLineNodeID).SetName("%s: Trajectory Line" % name)
+    slicer.util.getNode(self.tipFiducialNodeID).SetName("%s: Tip Fiducial" % name)
+    slicer.util.getNode(self.tubeModelNodeID).SetName("%s: Tube Model" % name)
 
-  def setAlphaOmegaChannelNode(self, channelNode):
-    self.alphaOmegaChannelNode = channelNode
-    if hasattr(slicer.modules,'rootmeansquare'):
-      self.RMSNode = slicer.cli.run(slicer.modules.rootmeansquare, None, {'dataFileName': self.alphaOmegaChannelNode.GetChannelFullSavePath()})
-      self.addObserver(self.RMSNode, slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, self.onRMSModified)
-    if hasattr(slicer.modules,'matlabcommander'):
-      initCommand = 'addpath("' + os.path.dirname(__file__) + '");addpath(genpath("' + os.path.join(os.path.expanduser('~'),'Documents','MATLAB','wave_clus') + '"))'
-      self.WCNode = slicer.cli.run(slicer.modules.matlabcommander, None, {'cmd':initCommand})
-      self.addObserver(self.WCNode, slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, self.onWCModified)
-
-  def onRMSModified(self, caller, event):
-    rmsValue = self.RMSNode.GetParameterAsString('rootMeanSquare')
-    fullFileName = self.RMSNode.GetParameterAsString('dataFileName')
-    if slicer.modules.alphaomega.logic().getParameterNode().GetParameter("AlignedRunning") == "false":
-      return
-    if self.RMSNode.GetStatusString() == 'Completed':
-      fiducialIndex = self.getFiducialIndexFromLabel("D = " + os.path.basename(fullFileName)[7:-6])
-      if fiducialIndex > -1:
-        self.traceFiducials.SetNthControlPointDescription(fiducialIndex, rmsValue)
-    if self.RMSNode.GetStatusString() in ['Completed', 'Cancelled']:
-      self.RMSNode.SetParameterAsString('dataFileName', self.alphaOmegaChannelNode.GetChannelFullSavePath())
-      slicer.cli.run(slicer.modules.rootmeansquare, self.RMSNode)
-    if (rmsValue not in ['', 'nan']) and (fullFileName != self.RMSNode.GetParameterAsString('dataFileName')) and hasattr(self,'WCNode'):
-      self.WCNode.SetParameterAsString('cmd', 'get_is_cluster("' + fullFileName + '")')
-      slicer.cli.run(slicer.modules.matlabcommander, self.WCNode)
-
-  def onWCModified(self, caller, event):
-    if self.WCNode.GetStatusString() == 'Completed':
-      reply = self.RMSNode.GetParameterAsString('reply')
-      isCluster = reply and reply[-1] == '1'
-      if isCluster:
-        fullFileName = self.WCNode.GetParameterAsString('dataFileName')[16:-2]
-        fiducialIndex = self.getFiducialIndexFromLabel("D = " + os.path.basename(fullFileName)[7:-6])
-        if fiducialIndex > -1:
-          p = [0]*3
-          self.traceFiducials.GetNthControlPointPositionWorld(fiducialIndex, p)
-          self.clusterFiducials.AddFiducialFromArray(p)
-
-  def getFiducialIndexFromLabel(self, label):
-    fiducialLabels = vtk.vtkStringArray()
-    self.traceFiducials.GetControlPointLabels(fiducialLabels)
-    return fiducialLabels.LookupValue(label)
-
-  def onTransformModified(self, caller=None, event=None):
-    # get current point
-    currentPoint = [0.0] * 4
-    matrix = vtk.vtkMatrix4x4()
-    self.translationTransform.GetMatrixTransformToWorld(matrix)
-    matrix.MultiplyPoint([0.0, 0.0, 0.0, 1.0], currentPoint)
-    # add fiducial in current point with distance to target as name
-    distanceToTargetNode = slicer.mrmlScene.GetNodeByID(self.translationTransform.GetTransformNodeID())
-    distanceToTargetNode.GetMatrixTransformToParent(matrix)
-    self.traceFiducials.AddFiducialFromArray(currentPoint[:3], "D = %.3f" % matrix.GetElement(2,3))
+  def addNodeAndAttributeToSHFolder(self, node, attributeName):
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    shNode.SetItemParent(shNode.GetItemByDataNode(node), self.folderID)
+    shNode.SetItemAttribute(self.folderID, attributeName, node.GetID())
 
   def createTranslationTransform(self):
     index = np.array(np.unravel_index(self.trajectoryNumber, (3,3))) - 1  # from 0:8 to (-1,-1) : (1,1)
@@ -192,9 +122,10 @@ class Trajectory(VTKObservationMixin):
     # add node
     transformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
     transformNode.SetMatrixTransformToParent(m)
-    return transformNode
+    self.addNodeAndAttributeToSHFolder(transformNode, 'translationTransformNodeID')
+    return transformNode.GetID()
 
-  def createMEModel(self):
+  def createMEModel(self, parentTransformID):
     # create cylinder (macro)
     cylinder = vtk.vtkCylinderSource()
     cylinder.SetRadius(0.35)
@@ -231,9 +162,10 @@ class Trajectory(VTKObservationMixin):
     model.GetDisplayNode().SetVisibility2D(1)
     model.GetDisplayNode().SetVisibility3D(1)
     self.setDefaultOrientationToModel(model)
-    return model
+    model.SetAndObserveTransformNodeID(parentTransformID)
+    self.addNodeAndAttributeToSHFolder(model, 'microElectrodeModelNodeID')
 
-  def createTrajectoryLine(self):
+  def createTrajectoryLine(self, parentTransformID):
     ls = vtk.vtkLineSource()
     ls.SetPoint1(0, -10, 0)
     ls.SetPoint2(0,  80, 0)
@@ -244,15 +176,17 @@ class Trajectory(VTKObservationMixin):
     model.SetDisplayVisibility(1)
     model.GetDisplayNode().SetColor(0.9,0.9,0.9)
     self.setDefaultOrientationToModel(model)
-    return model
+    model.SetAndObserveTransformNodeID(parentTransformID)
+    self.addNodeAndAttributeToSHFolder(model, 'trajectoryLineNodeID')
 
-  def createTipFiducial(self):
+  def createTipFiducial(self, parentTransformID):
     fiducialNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
     fiducialNode.GetDisplayNode().SetTextScale(0)
     fiducialNode.GetDisplayNode().SetVisibility3D(1)
     fiducialNode.AddControlPointWorld(vtk.vtkVector3d([0, 0, 0]))
     fiducialNode.SetLocked(True)
-    return fiducialNode
+    fiducialNode.SetAndObserveTransformNodeID(parentTransformID)
+    self.addNodeAndAttributeToSHFolder(fiducialNode, 'tipFiducialNodeID')
 
   def setDefaultOrientationToModel(self, model):
     # put in I-S axis
@@ -260,65 +194,16 @@ class Trajectory(VTKObservationMixin):
     vtkTransform.RotateWXYZ(90, 1, 0, 0)
     model.ApplyTransform(vtkTransform)
 
+  def createTubeModel(self):
+    tubeModel = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
+    tubeModel.CreateDefaultDisplayNodes()
+    tubeModel.GetDisplayNode().SetAndObserveColorNodeID(slicer.util.getNode('Viridis').GetID())
+    tubeModel.GetDisplayNode().ScalarVisibilityOn()
+    self.addNodeAndAttributeToSHFolder(tubeModel, 'tubeModelNodeID')
 
-  def updateModelFromFiducial(self, caller=None, event=None):
-    # get fiducial points to vtkPoints and description to vtkDoubleArray
-    samplePoints = vtk.vtkPoints()
-    valuesArray = []
-    pos = [0.0] * 3
-    i = 0
-    while i < self.traceFiducials.GetNumberOfControlPoints():
-      if self.traceFiducials.GetNthControlPointDescription(i) in ['','nan']:
-        if i < self.traceFiducials.GetNumberOfControlPoints() - 3:
-          self.traceFiducials.RemoveNthControlPoint(i)
-          continue
-      else:
-        self.traceFiducials.GetNthFiducialPosition(i,pos)
-        samplePoints.InsertNextPoint(pos)
-        valuesArray.append(float(self.traceFiducials.GetNthControlPointDescription(i)))
-      i += 1
-    if not valuesArray:
-      return
-    # array to vtk
-    valuesMedian = np.median(valuesArray[:min(len(valuesArray),5)])
-    vtkValuesArray = vtk.vtkDoubleArray()
-    vtkValuesArray.SetName('values')
-    for value in valuesArray:
-      vtkValuesArray.InsertNextTuple((max((value-valuesMedian)/valuesMedian/2.0, 0.1),))
-    # line source
-    polyLineSource = vtk.vtkPolyLineSource()
-    polyLineSource.SetPoints(samplePoints)
-    polyLineSource.Update()
-    # poly data
-    polyData = polyLineSource.GetOutput()
-    polyData.GetPointData().AddArray(vtkValuesArray)
-    polyData.GetPointData().SetScalars(vtkValuesArray)
-    # run tube filter
-    tubeFilter = vtk.vtkTubeFilter()
-    tubeFilter.SetInputData(polyData)
-    tubeFilter.SetVaryRadiusToVaryRadiusByAbsoluteScalar()
-    tubeFilter.SetNumberOfSides(16)
-    tubeFilter.CappingOn()
-    tubeFilter.Update()
-    # smooth
-    smoothFilter = vtk.vtkSmoothPolyDataFilter()
-    smoothFilter.SetInputData(tubeFilter.GetOutput())
-    smoothFilter.SetNumberOfIterations(2)
-    smoothFilter.SetRelaxationFactor(0.5)
-    smoothFilter.FeatureEdgeSmoothingOff()
-    smoothFilter.BoundarySmoothingOn()
-    smoothFilter.Update()
-    # update
-    self.traceModel.SetAndObservePolyData(smoothFilter.GetOutput())
-    self.traceModel.GetDisplayNode().SetActiveScalarName('values')
-    self.traceModel.GetDisplayNode().SetAutoScalarRange(False)
-    self.traceModel.GetDisplayNode().SetScalarRange(0.0,1.0)
-    self.traceModel.Modified()
-    return 
-
-  def updateTubeRadiusAndColor(self, samplePoints, valuesArray):
+  def mapFeatureValuesToTubeRadiusAndColor(self, valuesArray, samplePoints, visible):
     matrix = vtk.vtkMatrix4x4()
-    self.translationTransform.GetMatrixTransformToParent(matrix)
+    slicer.util.getNode(self.translationTransformNodeID).GetMatrixTransformToParent(matrix)
     transformedPoint = np.zeros(4)
     samplePointsVTK = vtk.vtkPoints()
     for i in range(samplePoints.shape[0]):
@@ -356,13 +241,63 @@ class Trajectory(VTKObservationMixin):
     smoothFilter.BoundarySmoothingOn()
     smoothFilter.Update()
     # update
-    self.traceModel.SetAndObservePolyData(smoothFilter.GetOutput())
-    self.traceModel.GetDisplayNode().SetActiveScalarName('values')
-    self.traceModel.GetDisplayNode().SetAutoScalarRange(False)
-    self.traceModel.GetDisplayNode().SetScalarRange(0.0,1.0)
-    self.traceModel.Modified()
-    return 
+    tubeModelNode = slicer.util.getNode(self.tubeModelNodeID)
+    tubeModelNode.SetAndObservePolyData(smoothFilter.GetOutput())
+    tubeModelNode.GetDisplayNode().SetActiveScalarName('values')
+    tubeModelNode.GetDisplayNode().SetAutoScalarRange(False)
+    tubeModelNode.GetDisplayNode().SetScalarRange(0.0,1.0)
+    tubeModelNode.GetDisplayNode().SetVisibility(visible)
+    tubeModelNode.Modified()
 
+  @classmethod
+  def InitOrGetNthTrajectory(cls, trajectoryNumber):
+    trajectory = cls.GetNthTrajectory(trajectoryNumber)
+    if trajectory is not None:
+      return trajectory
+    else:
+      return cls(trajectoryNumber)
+
+  @classmethod
+  def GetNthTrajectory(cls, trajectoryNumber):
+    folderID = cls.GetFolderIDForNthTrajectory(trajectoryNumber)
+    if folderID is not None:
+      return cls(folderID, fromFolderID=True)
+
+  @classmethod
+  def GetTrajectoryFromChannelName(cls, channelName):
+    folderID = cls.GetFolderIDForChannelName(channelName)
+    if folderID is not None:
+      return cls(folderID, fromFolderID=True)
+
+  @classmethod
+  def RemoveNthTrajectory(cls, trajectoryNumber):
+    folderID = cls.GetFolderIDForNthTrajectory(trajectoryNumber)
+    if folderID is not None:
+      shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+      shNode.RemoveItemChildren(folderID)
+      shNode.RemoveItem(folderID)
+
+  @staticmethod
+  def GetFolderIDForNthTrajectory(N):
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    vtk_ids = vtk.vtkIdList()
+    shNode.GetItemChildren(shNode.GetSceneItemID(), vtk_ids)
+    IDs = [vtk_ids.GetId(i) for i in range(vtk_ids.GetNumberOfIds())]
+    for ID in IDs:
+      if 'LeadORTrajectory' in shNode.GetItemAttributeNames(ID):
+        if int(shNode.GetItemAttribute(ID, 'LeadORTrajectory')) == N:
+          return ID
+  
+  @staticmethod
+  def GetFolderIDForChannelName(channelName):
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    vtk_ids = vtk.vtkIdList()
+    shNode.GetItemChildren(shNode.GetSceneItemID(), vtk_ids)
+    IDs = [vtk_ids.GetId(i) for i in range(vtk_ids.GetNumberOfIds())]
+    for ID in IDs:
+      if 'LeadORTrajectory' in shNode.GetItemAttributeNames(ID):
+        if shNode.GetItemAttribute(ID, 'ChannelName') == channelName:
+          return ID
 
 
 #
