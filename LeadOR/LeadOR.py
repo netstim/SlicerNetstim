@@ -124,6 +124,12 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.ui.IGTLinkCollapsibleButton.collapsed = True
       self.ui.IGTLinkCollapsibleButton.setToolTip('OpenIGTLinkIF Module required')
 
+    # Reslice driver
+    volumeResliceDriverPixmap = qt.QPixmap(self.resourcePath('Icons/VolumeResliceDriver.png'))
+    self.ui.setDefaultResliceDriverToolButton.setIcon(qt.QIcon(volumeResliceDriverPixmap))
+    self.ui.setDefaultResliceDriverToolButton.setIconSize(volumeResliceDriverPixmap.rect().size())
+    self.ui.setDefaultResliceDriverToolButton.clicked.connect(self.setDefaultResliceDriver)
+
     # Stim actions to ToolButton
     stimulationActionGroup = qt.QActionGroup(self.layout)
     for child in self.ui.trajectoriesLayoutFrame.children():
@@ -164,7 +170,6 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.distanceToTargetComboBox.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.ui.distanceToTargetSlider.setMRMLTransformNode(node))
     
     self.ui.distanceToTargetSlider.connect("valueChanged(double)", lambda value: self.ui.distanceToTargetSlider.applyTransformation(value))
-    self.ui.setDefaultResliceDriverPushButton.clicked.connect(self.setDefaultResliceDriver)
 
     # Trajectories
     for i in range(self.ui.trajectoryVisualizationComboBox.model().rowCount()):
@@ -340,11 +345,13 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.planningTransformComboBox.setCurrentNode(self._parameterNode.GetNodeReference("TrajectoryTransform"))
     
     transformsAvailable = bool(self._parameterNode.GetNodeReference("DistanceToTargetTransform") and self._parameterNode.GetNodeReference("TrajectoryTransform"))
-    self.ui.setDefaultResliceDriverPushButton.enabled = transformsAvailable
     self.ui.trajectoryPresetComboBox.enabled = transformsAvailable
     self.ui.trajectoriesLayoutFrame.enabled = transformsAvailable
     self.ui.linkChannelsToTrajectoriesPushButton.enabled = transformsAvailable
     self.ui.stimulationCollapsibleButton.enabled = transformsAvailable and hasattr(slicer,'vtkMRMLFiberBundleNode') and hasattr(slicer.vtkMRMLFiberBundleNode,'GetExtractFromROI')
+    self.ui.setDefaultResliceDriverToolButton.enabled = transformsAvailable and hasattr(slicer.modules,'volumereslicedriver')
+    
+    self.ui.setDefaultResliceDriverToolButton.toolTip = 'Set default reslice driver.' if hasattr(slicer.modules,'volumereslicedriver') else 'Install SlicerIGT to use volume reslice driver.'
 
     trajectories = json.loads(self._parameterNode.GetParameter("TrajectoriesJson"))
     for i,trajectory in enumerate(trajectories):
