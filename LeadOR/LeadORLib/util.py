@@ -110,6 +110,7 @@ class Trajectory():
       self.createTrajectoryLine(transformID)
       self.createTipFiducial(transformID)
       self.createTubeModel()
+      shNode.SetItemExpanded(self.folderID, False)
 
     self.translationTransformNodeID = shNode.GetItemAttribute(self.folderID, 'translationTransformNodeID')
     self.microElectrodeModelNodeID = shNode.GetItemAttribute(self.folderID, 'microElectrodeModelNodeID')

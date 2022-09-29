@@ -285,6 +285,14 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       return  
     wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
     
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    folderID = self._parameterNode.GetParameter("LeadORIGTLFolderID")
+    if folderID == '':
+      folderID = shNode.CreateFolderItem(shNode.GetSceneItemID(), "LeadOR-IGTL")
+      self._parameterNode.SetParameter("LeadORIGTLFolderID", str(folderID))
+      shNode.SetItemExpanded(folderID, False)
+    shNode.SetItemParent(shNode.GetItemByDataNode(node), int(folderID))
+    
     subname = node.GetName().split(':')[-1]
     if subname == "ChannelsNames":
       self.addObserver(node, node.TextModifiedEvent, lambda c,e,n=node: self.onChannelsNamesModified(n))
