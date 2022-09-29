@@ -313,7 +313,6 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
   def onChannelsNamesModified(self, channelsNamesNode):
     wasModified = self._parameterNode.StartModify()
-    self.setTrajectoryLayout([0]*9)  # todo: what happens when changing channels
     self._parameterNode.SetParameter("UnlinkedChannels", channelsNamesNode.GetText())
     self._parameterNode.EndModify(wasModified)
 
