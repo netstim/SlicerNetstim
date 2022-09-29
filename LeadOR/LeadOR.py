@@ -653,19 +653,45 @@ class LeadORTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_LeadOR1()
+    # self.test_LeadORWithOpenEphys()
+    self.test_LeadORFeatures()
 
-  def test_LeadOR1(self):
-    """ Ideally you should have several levels of tests.  At the lowest level
-    tests should exercise the functionality of the logic with different inputs
-    (both valid and invalid).  At higher levels your tests should emulate the
-    way the user would interact with your code and confirm that it still works
-    the way you intended.
-    One of the most important features of the tests is that it should alert other
-    developers when their changes will have an impact on the behavior of your
-    module.  For example, if a developer removes a feature that you depend on,
-    your test should break so they know that the feature is needed.
-    """
+  def test_LeadORFeatures(self):
+    planningNode =slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode','Planning')
+    dttNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode','DTT')
+    dttNode.SetAndObserveTransformNodeID(planningNode.GetID())
+
+    recordingSitesNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode','RecordingSite')
+    recordingSitesNode.GetDisplayNode().SetVisibility(0)
+    recordingSitesNode.AddControlPoint(0,0,10,'1')
+    recordingSitesNode.AddControlPoint(0,0,8,'2')
+    recordingSitesNode.AddControlPoint(0,0,7,'3')
+    recordingSitesNode.AddControlPoint(0,0,6,'4')
+    recordingSitesNode.AddControlPoint(0,0,5,'5')
+    recordingSitesNode.AddControlPoint(0,0,4,'6')
+    recordingSitesNode.AddControlPoint(0,0,3,'7')
+    recordingSitesNode.AddControlPoint(0,0,2,'8')
+    recordingSitesNode.AddControlPoint(0,0,1,'9')
+
+    featureNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTextNode','feature1')
+    featureNode.SetText("RecordingSiteID,Central\n\
+                          1,80\n\
+                          2,80\n\
+                          3,80\n\
+                          4,80\n\
+                          5,160\n\
+                          6,200\n\
+                          7,140\n\
+                          8,300\n\
+                          9,200")
+    
+    logic = LeadORLogic()
+
+    logic.setUpTrajectory(4, dttNode.GetID(), True, "Central", 0, 0, 0)
+    logic.setUpFeature(recordingSitesNode.GetID(), featureNode.GetID(), 'feature1', 'Tube', 'RadiusAndColor')
+
+
+  def test_LeadORWithOpenEphys(self):
 
     self.delayDisplay("Starting the test")
 
@@ -703,8 +729,6 @@ class LeadORTest(ScriptedLoadableModuleTest):
     self.assertEqual(r.json()['info'], 'Connected!')
 
     r = requests.put(url + "status", json={"mode" : "ACQUIRE"})
-
-    # Test the module logic
 
     self.delayDisplay('Test passed')
 
