@@ -8,8 +8,8 @@ from io import StringIO
 
 class Feature():
 
-  def __init__(self, name):
-    self.name = name
+  def __init__(self, projectTo):
+    self.projectTo = projectTo
   
   def setRecordingSitesMarkupsNodeID(self, recordingSitesMarkupsNodeID):
     recordingSitesNode = slicer.util.getNode(recordingSitesMarkupsNodeID)
@@ -19,16 +19,12 @@ class Feature():
       self.recordingSitesIDs[i] = recordingSitesNode.GetNthControlPointLabel(i)
       self.recordingSitesPoints[i,:] =  recordingSitesNode.GetNthControlPointPosition(i)
 
-  def addSourceNode(self, sourceNodeID, mapTo, visible):
+  def addSourceNode(self, sourceNodeID, property, visible):
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
     id = shNode.GetItemByDataNode(slicer.util.getNode(sourceNodeID))
-    shNode.SetItemAttribute(id, 'LeadORFeature', self.name)
-    shNode.SetItemAttribute(id, 'MapTo', mapTo)
+    shNode.SetItemAttribute(id, 'LeadORFeature', self.projectTo)
+    shNode.SetItemAttribute(id, 'Property', property)
     shNode.SetItemAttribute(id, 'Visible', str(int(bool(visible))))
-    nodeTypePossibilities = ['Tube', 'Markups']
-    for possibility in nodeTypePossibilities:
-      if mapTo.startswith(possibility):
-        self.nodeType = possibility
 
   def update(self):
     sourceNodesData = self.getSourceNodesData()  
@@ -37,39 +33,46 @@ class Feature():
       trajectory = Trajectory.GetTrajectoryFromChannelName(channelName)
       if trajectory is None:
         continue
-      tubeRadiusValues = np.empty(np.shape(self.recordingSitesIDs))
-      tubeRadiusValues[:] = 1
-      tubeColorValues = np.empty(np.shape(self.recordingSitesIDs))
-      tubeColorValues[:] = np.nan
+      tubeRadiusValues = None
+      tubeColorValues = None
       for sourceNodeData in sourceNodesData:
-        if channelName not in sourceNodeData['channelNames']:
+        if channelName not in sourceNodeData['channelNames'] or not sourceNodeData['visible']:
           continue
         values = sourceNodeData['values'][sourceNodeData['channelNames'].index(channelName)]
-        if sourceNodeData['mapTo'] == 'TubeRadiusAndColor':
+        if sourceNodeData['property'] == 'RadiusAndColor':
           tubeRadiusValues = values
           tubeColorValues = values
-        elif sourceNodeData['mapTo'] == 'TubeRadius':
+        elif sourceNodeData['property'] == 'Radius':
           tubeRadiusValues = values
-        elif sourceNodeData['mapTo'] == 'TubeColor':
+        elif sourceNodeData['property'] == 'Color':
           tubeColorValues = values
+      if tubeRadiusValues is None and tubeColorValues is None:
+        slicer.util.getNode(trajectory.tubeModelNodeID).GetDisplayNode().SetVisibility(0)
+        return
+      elif tubeRadiusValues is None:
+        tubeRadiusValues = np.empty(np.shape(self.recordingSitesIDs))
+        tubeRadiusValues[:] = 1
+      elif tubeColorValues is None:
+        tubeColorValues = np.empty(np.shape(self.recordingSitesIDs))
+        tubeColorValues[:] = np.nan
       trajectory.updateTubeModelFromValues(self.recordingSitesPoints, tubeRadiusValues, tubeColorValues)
-      slicer.util.getNode(trajectory.tubeModelNodeID).GetDisplayNode().SetVisibility(sourceNodeData['visible'])
+      slicer.util.getNode(trajectory.tubeModelNodeID).GetDisplayNode().SetVisibility(1)
     
   def getSourceNodesData(self):
     sourceNodesData = []
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
     vtk_ids = vtk.vtkIdList()
-    shNode.GetItemChildren(shNode.GetSceneItemID(), vtk_ids)
+    shNode.GetItemChildren(shNode.GetSceneItemID(), vtk_ids, True)
     IDs = [vtk_ids.GetId(i) for i in range(vtk_ids.GetNumberOfIds())]
     for ID in IDs:
       if 'LeadORFeature' in shNode.GetItemAttributeNames(ID):
-        if shNode.GetItemAttribute(ID, 'MapTo').startswith(self.nodeType):
+        if shNode.GetItemAttribute(ID, 'LeadORFeature') == self.projectTo:
           channelNames,channelValues = self.getChannelNamesValuesFromNodeText(shNode.GetItemDataNode(ID).GetText())
           sourceNodesData.append({})
           sourceNodesData[-1]['channelNames'] = channelNames
           sourceNodesData[-1]['values'] = channelValues
           sourceNodesData[-1]['visible'] = int(shNode.GetItemAttribute(ID, 'Visible'))
-          sourceNodesData[-1]['mapTo'] = shNode.GetItemAttribute(ID, 'MapTo')
+          sourceNodesData[-1]['property'] = shNode.GetItemAttribute(ID, 'Property')
     return sourceNodesData
 
   def getChannelNamesValuesFromNodeText(self, sourceText):

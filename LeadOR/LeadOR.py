@@ -303,7 +303,7 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self._parameterNode.SetNodeReferenceID("RecordingSiteMarkups", node.GetID())
       node.GetDisplayNode().SetVisibility(0)
     elif isinstance(node,slicer.vtkMRMLTextNode):
-      newFeature = {'name':subname, 'sourceNodeID':node.GetID(), 'mapTo':None, 'visible':1}
+      newFeature = {'name':subname, 'sourceNodeID':node.GetID(), 'projectTo':'Tube', 'property':'', 'visible':1}
       featuresList = json.loads(self._parameterNode.GetParameter("FeaturesJson"))
       featuresList.append(newFeature)
       self._parameterNode.SetParameter("FeaturesJson", json.dumps(featuresList))
@@ -602,12 +602,12 @@ class LeadORLogic(ScriptedLoadableModuleLogic):
     else:
       Trajectory.RemoveNthTrajectory(trajectoryNumber)
 
-  def setUpFeature(self, recordingSitesMarkupsNodeID=None, sourceNodeID=None, name='', mapTo='', visible=1):
+  def setUpFeature(self, recordingSitesMarkupsNodeID=None, sourceNodeID=None, name='', projectTo='Tube', property='', visible=1):
     if recordingSitesMarkupsNodeID is None or sourceNodeID is None:
       return
-    feature = Feature(name)
+    feature = Feature(projectTo)
     feature.setRecordingSitesMarkupsNodeID(recordingSitesMarkupsNodeID)
-    feature.addSourceNode(sourceNodeID, mapTo, visible)
+    feature.addSourceNode(sourceNodeID, property, visible)
     feature.update()
 
   def getVTARadius(self, I, pw=60): 

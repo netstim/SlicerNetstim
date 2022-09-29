@@ -1,14 +1,11 @@
 import qt
 
 class ComboDelegate(qt.QItemDelegate):
-  def __init__(self, parent, comboItems):
+  def __init__(self, parent):
     qt.QItemDelegate.__init__(self, parent)
-    self.comboItems = comboItems
 
   def createEditor(self, parent, option, index):
-    combo = qt.QComboBox(parent)
-    combo.addItems(self.comboItems)
-    return combo
+    pass
 
   def setEditorData(self, editor, index):
     editor.blockSignals(True)
@@ -19,6 +16,32 @@ class ComboDelegate(qt.QItemDelegate):
     name = editor.currentText
     model.setData(index, name, qt.Qt.DisplayRole)
 
+class ProjectToComboDelegate(ComboDelegate):
+  def __init__(self, parent, columnNames):
+    ComboDelegate.__init__(self, parent)
+    self.columnNames = columnNames
+
+  def createEditor(self, parent, option, index):
+    comboItems = ["Tube", "Markups"]
+    combo = qt.QComboBox(parent)
+    combo.addItems(comboItems)
+    combo.currentIndexChanged.connect(lambda i: index.model().setData(index.siblingAtColumn(self.columnNames.index("Property")), ""))
+    return combo
+
+class PropertyComboDelegate(ComboDelegate):
+  def __init__(self, parent, columnNames):
+    ComboDelegate.__init__(self, parent)
+    self.columnNames = columnNames
+
+  def createEditor(self, parent, option, index):
+    projectTo = index.siblingAtColumn(self.columnNames.index("Project To")).data(qt.Qt.DisplayRole)
+    if projectTo == "Tube":
+      comboItems = ["", "RadiusAndColor", "Radius", "Color"]
+    elif projectTo == "Markups":
+      comboItems = ["", "Size", "Color"]    
+    combo = qt.QComboBox(parent)
+    combo.addItems(comboItems)
+    return combo
 
 class customStandardItemModel(qt.QStandardItemModel):
   def __init__(self , *args, **kwargs):
@@ -42,7 +65,7 @@ class customStandardItemModel(qt.QStandardItemModel):
     self.updateFcn()
 
   def headerData(self,section,orientation,role):
-    if section == 2:
+    if section == self.columnNames.index("Visible"):
       if orientation == qt.Qt.Horizontal and role == qt.Qt.DecorationRole:
         return qt.QIcon(':Icons/Small/SlicerVisibleInvisible.png')
     elif orientation == qt.Qt.Horizontal and role == qt.Qt.DisplayRole:
@@ -55,7 +78,7 @@ class FeaturesTable:
 
   def __init__(self, view, updateParameterNodeFromGUIFunction):
 
-    self.columnNames = ["Name", "MapTo", "Visible"]
+    self.columnNames = ["Name", "Project To", "Property", "Visible"]
     self.model = customStandardItemModel(0, len(self.columnNames), columnNames=self.columnNames, updateFcn=updateParameterNodeFromGUIFunction)
 
     self.view = view
@@ -67,7 +90,8 @@ class FeaturesTable:
     self.view.setModel(self.model)
     self.view.selectionModel().selectionChanged.connect(self.onSelectionChanged)
 
-    self.view.setItemDelegateForColumn(self.columnNames.index("MapTo"), ComboDelegate(self.model, ["TubeRadiusAndColor","TubeRadius","TubeColor"]))
+    self.view.setItemDelegateForColumn(self.columnNames.index("Project To"), ProjectToComboDelegate(self.model, self.columnNames))
+    self.view.setItemDelegateForColumn(self.columnNames.index("Property"), PropertyComboDelegate(self.model, self.columnNames))
 
   def onSelectionChanged(self):
     pass
@@ -84,7 +108,10 @@ class FeaturesTable:
       self.view.setVisible(1)
       self.view.horizontalHeader().setSectionResizeMode(0, qt.QHeaderView.Stretch)
       self.view.horizontalHeader().setSectionResizeMode(1, qt.QHeaderView.Stretch)
-      self.view.horizontalHeader().setSectionResizeMode(2, qt.QHeaderView.ResizeToContents)
+      self.view.horizontalHeader().setSectionResizeMode(2, qt.QHeaderView.Stretch)
+      self.view.horizontalHeader().setSectionResizeMode(3, qt.QHeaderView.ResizeToContents)
+      index = self.model.index(self.model.rowCount()-1, self.columnNames.index("Project To"))
+      self.model.setData(index, "Tube")
 
   def removeLastRowAndSetHeight(self):
     self.model.removeRow(self.model.rowCount()-1)
@@ -129,4 +156,4 @@ class FeaturesTable:
     return updated
 
   def stringToCammelCase(self,str):
-    return str[0].lower() + str[1:]
+    return str[0].lower() + str[1:].replace(' ','')
