@@ -678,9 +678,9 @@ class LeadORTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    # self.test_LeadORWithOpenEphys()
+    self.test_LeadORWithOpenEphys()
     # self.test_LeadORFeatures()
-    self.test_LeadORFeaturesWithNan()
+    # self.test_LeadORFeaturesWithNan()
     # self.test_LeadORFeaturesBasic()
 
   def test_LeadORFeaturesBasic(self):
@@ -766,8 +766,8 @@ class LeadORTest(ScriptedLoadableModuleTest):
 
     channelName = "Central"
 
-    featureNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTextNode','feature1')
-    featureNode.SetText("RecordingSiteID,"+channelName+"\n\
+    featureNode1 = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTextNode','feature1')
+    featureNode1.SetText("RecordingSiteID,"+channelName+"\n\
                           1,80\n\
                           3,80\n\
                           4,80\n\
@@ -775,11 +775,23 @@ class LeadORTest(ScriptedLoadableModuleTest):
                           6,200\n\
                           8,300\n\
                           9,200")
+
+    featureNode2 = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTextNode','feature2')
+    featureNode2.SetText("RecordingSiteID,"+channelName+"\n\
+                          1,80\n\
+                          2,90\n\
+                          3,80\n\
+                          4,300\n\
+                          5,150\n\
+                          6,80\n\
+                          8,80\n\
+                          9,80")
     
     logic = LeadORLogic()
 
     logic.setUpTrajectory(4, dttNode.GetID(), True, channelName, 0, 0, 0)
-    logic.setUpFeature(recordingSitesNode.GetID(), featureNode.GetID(), 'feature1', 'Tube', 'RadiusAndColor')
+    logic.setUpFeature(recordingSitesNode.GetID(), featureNode1.GetID(), 'feature1', 'Tube', 'Radius')
+    logic.setUpFeature(recordingSitesNode.GetID(), featureNode2.GetID(), 'feature2', 'Tube', 'Color')
 
     self.delayDisplay('Test passed')
 

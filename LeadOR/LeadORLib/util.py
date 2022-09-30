@@ -1,6 +1,7 @@
 import slicer, vtk
 import numpy as np
 from io import StringIO
+import warnings
 
 #
 # Feature
@@ -30,34 +31,58 @@ class Feature():
     sourceNodesData = self.getSourceNodesData()  
     channelNames = set([ch for sourceNodeData in sourceNodesData for ch in sourceNodeData['channelNames']])
     for channelName in channelNames:
+      # Get Trajectory
       trajectory = Trajectory.GetTrajectoryFromChannelName(channelName)
       if trajectory is None:
         continue
-      tubeRadiusValues = None
-      tubeColorValues = None
+      featureValues = {'Radius':None, 'Color': None, 'Size':None}
+      # Populate feature values with source nodes data
       for sourceNodeData in sourceNodesData:
-        if channelName not in sourceNodeData['channelNames'] or not sourceNodeData['visible']:
-          continue
-        values = sourceNodeData['values'][sourceNodeData['channelNames'].index(channelName)]
-        if sourceNodeData['property'] == 'RadiusAndColor':
-          tubeRadiusValues = values
-          tubeColorValues = values
-        elif sourceNodeData['property'] == 'Radius':
-          tubeRadiusValues = values
-        elif sourceNodeData['property'] == 'Color':
-          tubeColorValues = values
-      if tubeRadiusValues is None and tubeColorValues is None:
-        slicer.util.getNode(trajectory.tubeModelNodeID).GetDisplayNode().SetVisibility(0)
-        return
-      elif tubeRadiusValues is None:
-        tubeRadiusValues = np.empty(np.shape(self.recordingSitesIDs))
-        tubeRadiusValues[:] = 1
-      elif tubeColorValues is None:
-        tubeColorValues = np.empty(np.shape(self.recordingSitesIDs))
-        tubeColorValues[:] = np.nan
-      trajectory.updateTubeModelFromValues(self.recordingSitesPoints, tubeRadiusValues, tubeColorValues)
-      slicer.util.getNode(trajectory.tubeModelNodeID).GetDisplayNode().SetVisibility(1)
-    
+        if channelName in sourceNodeData['channelNames'] and sourceNodeData['visible']:
+          if sourceNodeData['property'] == 'RadiusAndColor':
+            keys = ['Radius', 'Color']
+          else:
+            keys = [sourceNodeData['property']]
+          for key in keys:
+            featureValues[key] = sourceNodeData['values'][sourceNodeData['channelNames'].index(channelName)]
+      # Hide when no data to map
+      if self.projectTo == 'Tube' and featureValues['Radius'] is None and featureValues['Color'] is None:
+        slicer.util.getNode(trajectory.featuresTubeModelNodeID).GetDisplayNode().SetVisibility(0)
+        continue
+      elif self.projectTo == 'Markups' and featureValues['Size'] is None and featureValues['Color'] is None:
+        slicer.util.getNode(trajectory.featuresMarkupsNodeID).GetDisplayNode().SetVisibility(0)
+        continue
+      # Replace missing data with nans
+      for key,value in featureValues.items():
+        if value is None:
+          featureValues[key] = np.empty(np.shape(self.recordingSitesIDs))
+          featureValues[key][:] = np.nan
+      # Remove all nan entries and normalize
+      allNanIdx = np.all([np.isnan(val) for val in featureValues.values()], 0)
+      recordingSitesPoints = np.delete(self.recordingSitesPoints, allNanIdx, 0)
+      for key,value in featureValues.items():
+        valueAllNanRemoved = np.delete(value, allNanIdx)
+        featureValues[key] = self.getNormalizedVTKArrayWithName(valueAllNanRemoved, key)
+      # Map feature
+      if self.projectTo == 'Tube':
+        trajectory.updateTubeModelFromValues(recordingSitesPoints, featureValues['Radius'], featureValues['Color'])
+        slicer.util.getNode(trajectory.featuresTubeModelNodeID).GetDisplayNode().SetVisibility(1)
+      if self.projectTo == 'Markups':
+        trajectory.updateMarkupsFromValues(recordingSitesPoints, featureValues['Size'], featureValues['Color'])
+        slicer.util.getNode(trajectory.featuresMarkupsNodeID).GetDisplayNode().SetVisibility(1)    
+
+  def getNormalizedVTKArrayWithName(self, npArray, name):
+    with warnings.catch_warnings():
+      warnings.filterwarnings('ignore', r'All-NaN (slice|axis) encountered')
+      valuesMedian = np.nanmedian(npArray[:min(len(npArray),5)])
+    vtkValuesArray = vtk.vtkDoubleArray()
+    for value in npArray:
+      rel_val_from_cero = np.nanmax([(value / valuesMedian) - 1, 0.1])
+      rel_val_from_cero_to_one = np.min([rel_val_from_cero / 2.0, 1]) # values greater than three times the median are caped to one
+      vtkValuesArray.InsertNextTuple((rel_val_from_cero_to_one,))
+    vtkValuesArray.SetName(name)
+    return vtkValuesArray
+
   def getSourceNodesData(self):
     sourceNodesData = []
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
@@ -117,14 +142,16 @@ class Trajectory():
       self.createMEModel(transformID)
       self.createTrajectoryLine(transformID)
       self.createTipFiducial(transformID)
-      self.createTubeModel()
+      self.createFeaturesTubeModel()
+      self.createFeaturesMarkups()
       shNode.SetItemExpanded(self.folderID, False)
 
     self.translationTransformNodeID = shNode.GetItemAttribute(self.folderID, 'translationTransformNodeID')
     self.microElectrodeModelNodeID = shNode.GetItemAttribute(self.folderID, 'microElectrodeModelNodeID')
     self.trajectoryLineNodeID = shNode.GetItemAttribute(self.folderID, 'trajectoryLineNodeID')
     self.tipFiducialNodeID = shNode.GetItemAttribute(self.folderID, 'tipFiducialNodeID')
-    self.tubeModelNodeID = shNode.GetItemAttribute(self.folderID, 'tubeModelNodeID')
+    self.featuresTubeModelNodeID = shNode.GetItemAttribute(self.folderID, 'featuresTubeModelNodeID')
+    self.featuresMarkupsNodeID = shNode.GetItemAttribute(self.folderID, 'featuresMarkupsNodeID')
 
     self.setNodeNames()
 
@@ -140,7 +167,7 @@ class Trajectory():
   def setDistanceToTargetTransformID(self, distanceToTargetTransformID):
     planningTransformID = slicer.util.getNode(distanceToTargetTransformID).GetTransformNodeID()
     slicer.util.getNode(self.translationTransformNodeID).SetAndObserveTransformNodeID(distanceToTargetTransformID)
-    slicer.util.getNode(self.tubeModelNodeID).SetAndObserveTransformNodeID(planningTransformID)
+    slicer.util.getNode(self.featuresTubeModelNodeID).SetAndObserveTransformNodeID(planningTransformID)
 
   def setChannelName(self, channelName):
     self.channelName = channelName
@@ -155,7 +182,8 @@ class Trajectory():
     slicer.util.getNode(self.microElectrodeModelNodeID).SetName("%s: ME Model" % name)
     slicer.util.getNode(self.trajectoryLineNodeID).SetName("%s: Trajectory Line" % name)
     slicer.util.getNode(self.tipFiducialNodeID).SetName("%s: Tip Fiducial" % name)
-    slicer.util.getNode(self.tubeModelNodeID).SetName("%s: Tube Model" % name)
+    slicer.util.getNode(self.featuresTubeModelNodeID).SetName("%s: Feature Tube Model" % name)
+    slicer.util.getNode(self.featuresMarkupsNodeID).SetName("%s: Feature Markups" % name)
 
   def addNodeAndAttributeToSHFolder(self, node, attributeName):
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
@@ -247,12 +275,16 @@ class Trajectory():
     vtkTransform.RotateWXYZ(90, 1, 0, 0)
     model.ApplyTransform(vtkTransform)
 
-  def createTubeModel(self):
+  def createFeaturesTubeModel(self):
     tubeModel = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
     tubeModel.CreateDefaultDisplayNodes()
     tubeModel.GetDisplayNode().SetAndObserveColorNodeID(slicer.util.getNode('Viridis').GetID())
     tubeModel.GetDisplayNode().ScalarVisibilityOn()
-    self.addNodeAndAttributeToSHFolder(tubeModel, 'tubeModelNodeID')
+    self.addNodeAndAttributeToSHFolder(tubeModel, 'featuresTubeModelNodeID')
+
+  def createFeaturesMarkups(self):
+    featuresMarkups = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    self.addNodeAndAttributeToSHFolder(featuresMarkups, 'featuresMarkupsNodeID')
 
   def updateTubeModelFromValues(self, samplePoints, tubeRadiusValues, tubeColorValues):
     matrix = vtk.vtkMatrix4x4()
@@ -262,20 +294,15 @@ class Trajectory():
     for i in range(samplePoints.shape[0]):
       matrix.MultiplyPoint(np.append(samplePoints[i,:],1.0), transformedPoint)
       samplePointsVTK.InsertNextPoint(transformedPoint[:-1])
-    # array to vtk
-    vtkRadiusValuesArray = self.getNormalizedVTKArray(tubeRadiusValues)
-    vtkRadiusValuesArray.SetName('radius')
-    vtkColorValuesArray = self.getNormalizedVTKArray(tubeColorValues)
-    vtkColorValuesArray.SetName('color')
     # line source
     polyLineSource = vtk.vtkPolyLineSource()
     polyLineSource.SetPoints(samplePointsVTK)
     polyLineSource.Update()
     # poly data
     polyData = polyLineSource.GetOutput()
-    polyData.GetPointData().AddArray(vtkRadiusValuesArray)
-    polyData.GetPointData().AddArray(vtkColorValuesArray)
-    polyData.GetPointData().SetScalars(vtkRadiusValuesArray)
+    polyData.GetPointData().AddArray(tubeRadiusValues)
+    polyData.GetPointData().AddArray(tubeColorValues)
+    polyData.GetPointData().SetScalars(tubeRadiusValues)
     # run tube filter
     tubeFilter = vtk.vtkTubeFilter()
     tubeFilter.SetInputData(polyData)
@@ -292,21 +319,16 @@ class Trajectory():
     smoothFilter.BoundarySmoothingOn()
     smoothFilter.Update()
     # update
-    tubeModelNode = slicer.util.getNode(self.tubeModelNodeID)
+    tubeModelNode = slicer.util.getNode(self.featuresTubeModelNodeID)
     tubeModelNode.SetAndObservePolyData(smoothFilter.GetOutput())
-    tubeModelNode.GetDisplayNode().SetActiveScalarName('color')
+    tubeModelNode.GetDisplayNode().SetActiveScalarName('Color')
     tubeModelNode.GetDisplayNode().SetAutoScalarRange(False)
     tubeModelNode.GetDisplayNode().SetScalarRange(0.0,1.0)
     tubeModelNode.Modified()
 
-  def getNormalizedVTKArray(self, npArray):
-    valuesMedian = np.nanmedian(npArray[:min(len(npArray),5)])
-    vtkValuesArray = vtk.vtkDoubleArray()
-    for value in npArray:
-      rel_val_from_cero = np.nanmax([(value / valuesMedian) - 1, 0.1])
-      rel_val_from_cero_to_one = np.min([rel_val_from_cero / 2.0, 1]) # values greater than three times the median are caped to one
-      vtkValuesArray.InsertNextTuple((rel_val_from_cero_to_one,))
-    return vtkValuesArray
+  def updateMarkupsFromValues(self, samplePoints, markupsSize, markupsColor):
+    pass # TODO
+
 
   @classmethod
   def InitOrGetNthTrajectory(cls, trajectoryNumber):
