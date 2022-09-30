@@ -680,8 +680,31 @@ class LeadORTest(ScriptedLoadableModuleTest):
     self.setUp()
     # self.test_LeadORWithOpenEphys()
     self.test_LeadORFeatures()
+    # self.test_LeadORFeatureBasic()
+
+  def test_LeadORFeatureBasic(self):
+    self.delayDisplay("Starting the test")
+
+    planningNode =slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode','Planning')
+    dttNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode','DTT')
+    dttNode.SetAndObserveTransformNodeID(planningNode.GetID())
+
+    recordingSitesNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode','RecordingSite')
+    recordingSitesNode.GetDisplayNode().SetVisibility(0)
+
+    featureNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTextNode','feature1')
+    featureNode.SetText("RecordingSiteID,Central")
+    
+    logic = LeadORLogic()
+
+    logic.setUpTrajectory(4, dttNode.GetID(), True, "Central", 0, 0, 0)
+    logic.setUpFeature(recordingSitesNode.GetID(), featureNode.GetID(), 'feature1', 'Tube', 'RadiusAndColor')
+
+    self.delayDisplay('Test passed')
 
   def test_LeadORFeatures(self):
+    self.delayDisplay("Starting the test")
+
     planningNode =slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode','Planning')
     dttNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode','DTT')
     dttNode.SetAndObserveTransformNodeID(planningNode.GetID())
@@ -715,6 +738,7 @@ class LeadORTest(ScriptedLoadableModuleTest):
     logic.setUpTrajectory(4, dttNode.GetID(), True, "Central", 0, 0, 0)
     logic.setUpFeature(recordingSitesNode.GetID(), featureNode.GetID(), 'feature1', 'Tube', 'RadiusAndColor')
 
+    self.delayDisplay('Test passed')
 
   def test_LeadORWithOpenEphys(self):
 

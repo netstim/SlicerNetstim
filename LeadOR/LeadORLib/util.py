@@ -68,6 +68,8 @@ class Feature():
       if 'LeadORFeature' in shNode.GetItemAttributeNames(ID):
         if shNode.GetItemAttribute(ID, 'LeadORFeature') == self.projectTo:
           channelNames,channelValues = self.getChannelNamesValuesFromNodeText(shNode.GetItemDataNode(ID).GetText())
+          if channelNames is None:
+            continue
           sourceNodesData.append({})
           sourceNodesData[-1]['channelNames'] = channelNames
           sourceNodesData[-1]['values'] = channelValues
@@ -76,8 +78,11 @@ class Feature():
     return sourceNodesData
 
   def getChannelNamesValuesFromNodeText(self, sourceText):
+    sourceTextLines = sourceText.splitlines()
+    if len(sourceTextLines) < 3:
+      return None, None
     channelValues = []
-    channelNames = sourceText.splitlines()[0].split(",")[1:]
+    channelNames = sourceTextLines[0].split(",")[1:]
     textData = np.genfromtxt(StringIO(sourceText), delimiter=',', skip_header=1)
     recordingSitesIDs = np.array(textData[:,0], dtype=int).squeeze()
     for channelName in channelNames:
