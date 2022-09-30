@@ -300,11 +300,11 @@ class Trajectory():
     tubeModelNode.Modified()
 
   def getNormalizedVTKArray(self, npArray):
-    valuesMedian = np.median(npArray[:min(len(npArray),5)])
+    valuesMedian = np.nanmedian(npArray[:min(len(npArray),5)])
     vtkValuesArray = vtk.vtkDoubleArray()
     for value in npArray:
-      rel_val_from_cero = max((value / valuesMedian) - 1, 0.1)
-      rel_val_from_cero_to_one = min(rel_val_from_cero / 2.0, 1) # values greater than three times the median are caped to one
+      rel_val_from_cero = np.nanmax([(value / valuesMedian) - 1, 0.1])
+      rel_val_from_cero_to_one = np.min([rel_val_from_cero / 2.0, 1]) # values greater than three times the median are caped to one
       vtkValuesArray.InsertNextTuple((rel_val_from_cero_to_one,))
     return vtkValuesArray
 

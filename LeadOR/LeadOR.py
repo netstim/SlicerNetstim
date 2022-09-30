@@ -679,10 +679,11 @@ class LeadORTest(ScriptedLoadableModuleTest):
     """
     self.setUp()
     # self.test_LeadORWithOpenEphys()
-    self.test_LeadORFeatures()
-    # self.test_LeadORFeatureBasic()
+    # self.test_LeadORFeatures()
+    self.test_LeadORFeaturesWithNan()
+    # self.test_LeadORFeaturesBasic()
 
-  def test_LeadORFeatureBasic(self):
+  def test_LeadORFeaturesBasic(self):
     self.delayDisplay("Starting the test")
 
     planningNode =slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode','Planning')
@@ -692,12 +693,14 @@ class LeadORTest(ScriptedLoadableModuleTest):
     recordingSitesNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode','RecordingSite')
     recordingSitesNode.GetDisplayNode().SetVisibility(0)
 
+    channelName = "Central"
+
     featureNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTextNode','feature1')
-    featureNode.SetText("RecordingSiteID,Central")
+    featureNode.SetText("RecordingSiteID,"+channelName)
     
     logic = LeadORLogic()
 
-    logic.setUpTrajectory(4, dttNode.GetID(), True, "Central", 0, 0, 0)
+    logic.setUpTrajectory(4, dttNode.GetID(), True, channelName, 0, 0, 0)
     logic.setUpFeature(recordingSitesNode.GetID(), featureNode.GetID(), 'feature1', 'Tube', 'RadiusAndColor')
 
     self.delayDisplay('Test passed')
@@ -721,8 +724,10 @@ class LeadORTest(ScriptedLoadableModuleTest):
     recordingSitesNode.AddControlPoint(0,0,2,'8')
     recordingSitesNode.AddControlPoint(0,0,1,'9')
 
+    channelName = "Central"
+
     featureNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTextNode','feature1')
-    featureNode.SetText("RecordingSiteID,Central\n\
+    featureNode.SetText("RecordingSiteID,"+channelName+"\n\
                           1,80\n\
                           2,80\n\
                           3,80\n\
@@ -735,10 +740,49 @@ class LeadORTest(ScriptedLoadableModuleTest):
     
     logic = LeadORLogic()
 
-    logic.setUpTrajectory(4, dttNode.GetID(), True, "Central", 0, 0, 0)
+    logic.setUpTrajectory(4, dttNode.GetID(), True, channelName, 0, 0, 0)
     logic.setUpFeature(recordingSitesNode.GetID(), featureNode.GetID(), 'feature1', 'Tube', 'RadiusAndColor')
 
     self.delayDisplay('Test passed')
+
+  def test_LeadORFeaturesWithNan(self):
+    self.delayDisplay("Starting the test")
+
+    planningNode =slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode','Planning')
+    dttNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode','DTT')
+    dttNode.SetAndObserveTransformNodeID(planningNode.GetID())
+
+    recordingSitesNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode','RecordingSite')
+    recordingSitesNode.GetDisplayNode().SetVisibility(0)
+    recordingSitesNode.AddControlPoint(0,0,10,'1')
+    recordingSitesNode.AddControlPoint(0,0,8,'2')
+    recordingSitesNode.AddControlPoint(0,0,7,'3')
+    recordingSitesNode.AddControlPoint(0,0,6,'4')
+    recordingSitesNode.AddControlPoint(0,0,5,'5')
+    recordingSitesNode.AddControlPoint(0,0,4,'6')
+    recordingSitesNode.AddControlPoint(0,0,3,'7')
+    recordingSitesNode.AddControlPoint(0,0,2,'8')
+    recordingSitesNode.AddControlPoint(0,0,1,'9')
+
+    channelName = "Central"
+
+    featureNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTextNode','feature1')
+    featureNode.SetText("RecordingSiteID,"+channelName+"\n\
+                          1,80\n\
+                          3,80\n\
+                          4,80\n\
+                          5,160\n\
+                          6,200\n\
+                          8,300\n\
+                          9,200")
+    
+    logic = LeadORLogic()
+
+    logic.setUpTrajectory(4, dttNode.GetID(), True, channelName, 0, 0, 0)
+    logic.setUpFeature(recordingSitesNode.GetID(), featureNode.GetID(), 'feature1', 'Tube', 'RadiusAndColor')
+
+    self.delayDisplay('Test passed')
+
 
   def test_LeadORWithOpenEphys(self):
 
