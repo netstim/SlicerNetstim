@@ -129,6 +129,25 @@
            </property>
           </widget>
          </item>
+         <item>
+          <widget class="QToolButton" name="recordSequenceToolButton">
+           <property name="maximumSize">
+            <size>
+             <width>20</width>
+             <height>20</height>
+            </size>
+           </property>
+           <property name="toolTip">
+            <string>Set up sequences to record distance to target and feature changes.</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
         </layout>
        </widget>
       </item>

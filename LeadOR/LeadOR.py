@@ -130,6 +130,12 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.setDefaultResliceDriverToolButton.setIconSize(volumeResliceDriverPixmap.rect().size())
     self.ui.setDefaultResliceDriverToolButton.clicked.connect(self.setDefaultResliceDriver)
 
+    # Sequences
+    recordSequenzePixmap = qt.QPixmap(self.resourcePath('Icons/VcrRecord16.png'))
+    self.ui.recordSequenceToolButton.setIcon(qt.QIcon(recordSequenzePixmap))
+    self.ui.recordSequenceToolButton.setIconSize(recordSequenzePixmap.rect().size())
+    self.ui.recordSequenceToolButton.clicked.connect(self.setUpSequenzeRecording)
+
     # Stim actions to ToolButton
     stimulationActionGroup = qt.QActionGroup(self.layout)
     for child in self.ui.trajectoriesLayoutFrame.children():
@@ -354,6 +360,7 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.planningTransformComboBox.setCurrentNode(self._parameterNode.GetNodeReference("TrajectoryTransform"))
     
     transformsAvailable = bool(self._parameterNode.GetNodeReference("DistanceToTargetTransform") and self._parameterNode.GetNodeReference("TrajectoryTransform"))
+    self.ui.recordSequenceToolButton.enabled = transformsAvailable
     self.ui.trajectoryPresetComboBox.enabled = transformsAvailable
     self.ui.trajectoriesLayoutFrame.enabled = transformsAvailable
     self.ui.linkChannelsToTrajectoriesPushButton.enabled = transformsAvailable
@@ -506,6 +513,25 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
   def setDefaultResliceDriver(self):
     import StereotacticPlan
     StereotacticPlan.StereotacticPlanLib.util.setDefaultResliceDriver(self._parameterNode.GetNodeReferenceID("DistanceToTargetTransform"))
+
+  def setUpSequenzeRecording(self):
+    browserNode = self._parameterNode.GetNodeReference("browserNode")
+    if browserNode is None:
+      browserNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSequenceBrowserNode', 'LeadOR')
+      self._parameterNode.SetNodeReferenceID("browserNode", browserNode.GetID())
+
+    if self.ui.recordSequenceToolButton.isChecked():
+      sequencesLogic = slicer.modules.sequences.logic()
+      featuresList = json.loads(self._parameterNode.GetParameter("FeaturesJson"))
+      nodesToSync = [feature['sourceNodeID'] for feature in featuresList]
+      nodesToSync.insert(0, self._parameterNode.GetNodeReferenceID("DistanceToTargetTransform"))
+      for nodeID in nodesToSync:
+        sequenceNode = browserNode.GetSequenceNode(slicer.util.getNode(nodeID))
+        if sequenceNode is None:
+          sequenceNode = sequencesLogic.AddSynchronizedNode(None, slicer.util.getNode(nodeID), browserNode)
+        browserNode.SetRecording(sequenceNode, True)
+
+    browserNode.SetRecordingActive(self.ui.recordSequenceToolButton.isChecked())
 
   def onStimulationActivate(self, active):
     if active: 

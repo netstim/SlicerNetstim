@@ -14,6 +14,7 @@ set(MODULE_PYTHON_RESOURCES
   Resources/Icons/${MODULE_NAME}.png
   Resources/Icons/LeadOR1.png
   Resources/Icons/VolumeResliceDriver.png
+  Resources/Icons/VcrRecord16.png
   Resources/UI/${MODULE_NAME}.ui
 )
 
