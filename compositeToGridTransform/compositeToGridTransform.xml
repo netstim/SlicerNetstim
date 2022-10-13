@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<executable>
+  <category>Utilities</category>
+  <title>compositeToGridTransform</title>
+  <description><![CDATA[This is a CLI module that can be bundled in an extension]]></description>
+  <version>0.0.1</version>
+  <documentation-url>https://github.com/username/project</documentation-url>
+  <license>Slicer</license>
+  <contributor>FirstName LastName (Institution), FirstName LastName (Institution)</contributor>
+  <acknowledgements>This work was partially funded by NIH grant NXNNXXNNNNNN-NNXN</acknowledgements>
+  <parameters>
+    <image>
+      <name>referenceVolume</name>
+      <label>Reference volume</label>
+      <default>None</default>
+      <description>Reference volume</description>
+      <channel>input</channel>
+      <index>0</index>
+    </image>
+    <transform fileExtensions=".h5">
+      <name>inputCompositeTransform</name>
+      <description>Input Composite Transform</description>
+      <label>Input Composite Transform</label>
+      <default>None</default>
+      <channel>input</channel>
+      <index>1</index>
+    </transform>
+    <transform fileExtensions=".nrrd" type="nonlinear">
+      <name>outputDisplacementField</name>
+      <longflag>--outputDisplacementField</longflag>
+      <description>Deformation field</description>
+      <label>Output displacement field</label>
+      <default>None</default>
+      <channel>output</channel>
+    </transform>
+    <string>
+      <name>outputFileName</name>
+      <longflag>--outputFileName</longflag>
+      <description>Alternativly to a MRML Node, choose a file to save the transform directly.</description>
+      <label>Output File Name</label>
+      <default></default>
+      <channel>input</channel>
+    </string>
+  </parameters>
+</executable>
