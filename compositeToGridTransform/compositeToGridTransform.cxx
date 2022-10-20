@@ -37,7 +37,7 @@ void GetTransformedPointSamplesAsVectorImage(vtkImageData* vectorImage, vtkMRMLT
   int* extent = vectorImage->GetExtent();
   int* dim = vectorImage->GetDimensions();
   float numberOfVoxels = dim[0] * dim[1] * dim[2];
-  uint voxelCount = 0;
+  unsigned int voxelCount = 0;
   for (point_IJK[2] = extent[4]; point_IJK[2] <= extent[5]; point_IJK[2]++)
   {
     for (point_IJK[1] = extent[2]; point_IJK[1] <= extent[3]; point_IJK[1]++)
