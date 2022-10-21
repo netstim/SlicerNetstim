@@ -210,8 +210,9 @@ int main( int argc, char * argv[] )
 
   // RUN
 
-  transform1Node->SetAndObserveTransformNodeID(transform2Node->GetID());
-  transform1Node->HardenTransform();
+  vtkNew<vtkGeneralTransform> hardeningTransform;
+  transform2Node->GetTransformToWorld(hardeningTransform.GetPointer());
+  transform1Node->ApplyTransform(hardeningTransform.GetPointer());
 
   std::cout << "<filter-comment>" << "Computing" << "</filter-comment>" << std::endl << std::flush;
   GetTransformedPointSamplesAsVectorImage(outputVolume, transform1Node, ijkToRas.GetPointer());
