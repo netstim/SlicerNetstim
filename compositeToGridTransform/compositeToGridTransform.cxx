@@ -70,6 +70,68 @@ int main( int argc, char * argv[] )
 {
   PARSE_ARGS;
 
+  // INPUT TRANSFORM 1
+
+  bool transform1FromNode = inputTransform1Node.compare("None") != 0;
+  bool transform1FromFile = !inputTransform1File.empty();
+
+  if ((transform1FromNode && transform1FromFile) || (!transform1FromNode && !transform1FromFile))
+  {
+    std::cerr << "Specify either a MRML transform node or a transform file name for input transform 1." << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  vtkNew<vtkMRMLTransformNode> transform1Node;
+  vtkNew<vtkMRMLTransformStorageNode> storageNode1;
+  storageNode1->SetFileName(transform1FromNode ? inputTransform1Node.c_str() : inputTransform1File.c_str());
+  if (!storageNode1->ReadData(transform1Node))
+  {
+    std::cerr << "Failed to read input transform 1 from file " << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  // INPUT TRANSFORM 2
+
+  bool transform2FromNode = inputTransform2Node.compare("None") != 0;
+  bool transform2FromFile = !inputTransform2File.empty();
+
+  if ((transform2FromNode && transform2FromFile) || (!transform2FromNode && !transform2FromFile))
+  {
+    std::cerr << "Specify either a MRML transform node or a transform file name for input transform 2." << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  vtkNew<vtkMRMLTransformNode> transform2Node;
+  vtkNew<vtkMRMLTransformStorageNode> storageNode2;
+  storageNode2->SetFileName(transform2FromNode ? inputTransform2Node.c_str() : inputTransform2File.c_str());
+  if (!storageNode2->ReadData(transform2Node))
+  {
+    std::cerr << "Failed to read input transform 2 from file " << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  // REFERENCE VOLUME
+
+  bool referenceVolumeFromNode = inputReferenceVolumeNode.compare("None") != 0;
+  bool referenceVolumeFromFile = !inputReferenceVolumeFile.empty();
+
+  if ((referenceVolumeFromNode && referenceVolumeFromFile) || (!referenceVolumeFromNode && !referenceVolumeFromFile))
+  {
+    std::cerr << "Specify either a MRML volume node or a volume file name for reference volume." << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  vtkNew<vtkMRMLScalarVolumeNode> referenceVolumeNode;
+  vtkNew<vtkMRMLVolumeArchetypeStorageNode> storageNode3;
+  storageNode3->SetFileName(referenceVolumeFromNode ? inputReferenceVolumeNode.c_str() : inputReferenceVolumeFile.c_str());
+  if (!storageNode3->ReadData(referenceVolumeNode))
+  {
+    std::cerr << "Failed to read reference volume from file " << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  // OUTPUT
+
   bool saveToNode = outputDisplacementField.compare("None") != 0;
   bool saveToFile = !outputFileName.empty();
 
@@ -79,29 +141,7 @@ int main( int argc, char * argv[] )
     return EXIT_FAILURE;
   }
 
-  vtkNew<vtkMRMLScalarVolumeNode> referenceVolumeNode;
-  if (!referenceVolume.empty())
-  {
-    vtkNew<vtkMRMLVolumeArchetypeStorageNode> storageNode;
-    storageNode->SetFileName(referenceVolume.c_str());
-    if (!storageNode->ReadData(referenceVolumeNode))
-    {
-      std::cerr << "Failed to read reference volume from file " << std::endl;
-      return EXIT_FAILURE;
-    }
-  }
-
-  vtkNew<vtkMRMLTransformNode> compositeTransformNode;
-  if (!inputCompositeTransform.empty())
-  {
-    vtkNew<vtkMRMLTransformStorageNode> storageNode;
-    storageNode->SetFileName(inputCompositeTransform.c_str());
-    if (!storageNode->ReadData(compositeTransformNode))
-    {
-      std::cerr << "Failed to read composite transform from file " << std::endl;
-      return EXIT_FAILURE;
-    }
-  }
+  std::cout << "<filter-comment>" << "Set up" << "</filter-comment>" << std::endl << std::flush;
 
   // Create a grid transform
   vtkSmartPointer<vtkMRMLTransformNode> outputGridTransformNode;
@@ -168,9 +208,13 @@ int main( int argc, char * argv[] )
     outputGridTransform->SetGridDirectionMatrix(ijkToRasDirection.GetPointer());
   }
 
+  // RUN
+
+  transform1Node->SetAndObserveTransformNodeID(transform2Node->GetID());
+  transform1Node->HardenTransform();
 
   std::cout << "<filter-comment>" << "Computing" << "</filter-comment>" << std::endl << std::flush;
-  GetTransformedPointSamplesAsVectorImage(outputVolume, compositeTransformNode, ijkToRas.GetPointer());
+  GetTransformedPointSamplesAsVectorImage(outputVolume, transform1Node, ijkToRas.GetPointer());
 
   std::cout << "<filter-comment>" << "Writing" << "</filter-comment>" << std::endl << std::flush;
   vtkNew<vtkMRMLTransformStorageNode> storageNode;
