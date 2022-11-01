@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <executable>
   <category>Utilities</category>
-  <title>fiducialRegistrationVariableRBF</title>
+  <title>FiducialRegistrationVariableRBF</title>
   <description><![CDATA[This is a CLI module that can be bundled in an extension]]></description>
   <version>0.0.1</version>
   <documentation-url>https://github.com/username/project</documentation-url>

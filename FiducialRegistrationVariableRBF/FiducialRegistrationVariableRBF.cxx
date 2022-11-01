@@ -2,7 +2,7 @@
 // Instead of using plastimatch classes, here ITK and SimpleITK abstractions are used.
 // https://gitlab.com/plastimatch/plastimatch
 
-#include "fiducialRegistrationVariableRBFCLP.h"
+#include "FiducialRegistrationVariableRBFCLP.h"
 
 // ITK includes
 #include <itkImage.h>

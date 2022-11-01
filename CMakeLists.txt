@@ -24,8 +24,8 @@ add_subdirectory(StereotacticPlan)
 add_subdirectory(ImportAtlas)
 add_subdirectory(WarpDrive)
 add_subdirectory(NetstimPreferences)
-add_subdirectory(fiducialRegistrationVariableRBF)
-add_subdirectory(compositeToGridTransform)
+add_subdirectory(FiducialRegistrationVariableRBF)
+add_subdirectory(CompositeToGridTransform)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------

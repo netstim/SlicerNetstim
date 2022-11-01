@@ -24,7 +24,7 @@ class WarpDrive(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "WarpDrive" 
     self.parent.categories = ["Netstim"]
-    self.parent.dependencies = ["fiducialRegistrationVariableRBF"]
+    self.parent.dependencies = ["FiducialRegistrationVariableRBF"]
     self.parent.contributors = ["Simon Oxenford (Netstim Berlin)"]
     self.parent.helpText = """
 This module provides tools to manually fix misalignments after non linear registration
@@ -506,7 +506,7 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
 
   def computeWarp(self, referenceVolume, outputNode, sourceFiducial, targetFiducial, RBFRadius, stiffness):
 
-    # Compute the warp with fiducialRegistrationVariableRBF
+    # Compute the warp with FiducialRegistrationVariableRBF
     cliParams = {
       "referenceVolume" : referenceVolume.GetID(),
       "fixedFiducials" : targetFiducial.GetID(),

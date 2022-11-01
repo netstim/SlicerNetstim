@@ -1,4 +1,4 @@
-#include "compositeToGridTransformCLP.h"
+#include "CompositeToGridTransformCLP.h"
 
 // MRML includes
 #include <vtkMRMLTransformNode.h>
