@@ -26,82 +26,165 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     self.name = 'LeadDBS'
   
     #
-    # Space Separator
+    # Subject
     #
-    empty = qt.QWidget()
-    empty.setSizePolicy(qt.QSizePolicy.Expanding,qt.QSizePolicy.Preferred)
-    self.addWidget(empty)
+    self.subjectAction = qt.QAction(self)
+    self.subjectAction.setIcon(qt.QIcon(":/Icons/Patient.png"))
+    self.subjectAction.setEnabled(False)
+
+    subjectButton = qt.QToolButton()
+    subjectButton.setDefaultAction(self.subjectAction)
+    subjectButton.setStyleSheet("color: black")
+    subjectButton.setToolButtonStyle(qt.Qt.ToolButtonTextBesideIcon)
 
     #
     # Modality
     #
-    self.addWidget(qt.QLabel('Modality:'))
-    self.modalityComboBox = qt.QComboBox()
-    self.modalityComboBox.addItem('ax_T2w')
-    self.modalityComboBox.view().pressed.connect(self.onModalityPressed)
-    self.addWidget(self.modalityComboBox)
+    a = qt.QAction(self)
+    a.setText('ax_T2w')
+    a.setCheckable(True)
+    a.setChecked(True)
+
+    self.modalitiesGroup = qt.QActionGroup(self)
+    self.modalitiesGroup.setExclusive(True)
+    self.modalitiesGroup.addAction(a)
+    self.modalitiesGroup.connect('triggered(QAction*)', self.modalityChanged)
+
+    self.modalitiesMenu = qt.QMenu(self)
+    self.modalitiesMenu.addActions(self.modalitiesGroup.actions())
+
+    modalityAction = qt.QAction(self)
+    modalityAction.setIcon(qt.QIcon(":/Icons/Small/SlicerVisible.png"))
+    modalityAction.setText('Modality')
+
+    modalityButton = qt.QToolButton()
+    modalityButton.setDefaultAction(modalityAction)
+    modalityButton.setMenu(self.modalitiesMenu)
+    modalityButton.setToolButtonStyle(qt.Qt.ToolButtonTextBesideIcon)
+    modalityButton.setPopupMode(qt.QToolButton.InstantPopup)
 
     #
     # B <-> F slider
     #
-    self.addSeparator()
-    self.addWidget(qt.QLabel('Template:'))
     templateSlider = qt.QSlider(1)
     templateSlider.singleStep = 10
     templateSlider.minimum = 0
     templateSlider.maximum = 100
     templateSlider.value = 0
-    templateSlider.setFixedWidth(120)
-    templateSlider.connect('valueChanged(int)', lambda value: slicer.util.setSliceViewerLayers(foregroundOpacity = value / 100.0))
-    self.addWidget(templateSlider)
 
-    #
-    # Subject
-    #
-    self.addSeparator()
-    self.subjectNameLabel = qt.QLabel('Subject: ')    
-    self.addWidget(self.subjectNameLabel)
+    action = qt.QWidgetAction(self)
+    action.setDefaultWidget(templateSlider)
 
-    #
-    # Harden Changes
-    #
-    self.addSeparator()
-    self.hardenChangesCheckBox = qt.QCheckBox("Harden Changes")
-    self.hardenChangesCheckBox.checked = True
-    self.hardenChangesCheckBox.toolTip = 'When checked, the changes will be written to the subject transform files. If not, the transforms will not be modified and source and target points will be saved for the next time warpdrive is opened.'
-    self.addWidget(self.hardenChangesCheckBox)
+    menu = qt.QMenu(self)
+    menu.addAction(action)
+
+    templateAction = qt.QAction(self)
+    templateAction.setIcon(qt.QIcon(":/Icons/Small/SlicerVisible.png"))
+    templateAction.setText('Template')
+    templateAction.setToolTip('Toggle between subject and template image. Long-press to set opacity value.')
+    templateAction.setCheckable(True)
+    templateAction.connect("triggered(bool)", lambda b: templateSlider.setValue(int(b)*100))
+    templateSlider.connect('valueChanged(int)', lambda value: [templateAction.setChecked(value>0), slicer.util.setSliceViewerLayers(foregroundOpacity = value / 100.0)])
+
+    templateButton = qt.QToolButton()
+    templateButton.setDefaultAction(templateAction)
+    templateButton.setMenu(menu)
+    templateButton.setToolButtonStyle(qt.Qt.ToolButtonTextBesideIcon)
+    templateButton.setPopupMode(qt.QToolButton.DelayedPopup)
 
     #
     # Save
     #
-    self.nextButton = qt.QPushButton("Next")
-    self.nextButton.setFixedWidth(75)
-    self.nextButton.setStyleSheet("background-color: green")
-    self.addWidget(self.nextButton)
-    self.nextButton.connect("clicked(bool)", self.nextSubject)
+    self.hardenChangesAction = qt.QAction(self)
+    self.hardenChangesAction.setText('Harden Changes')
+    self.hardenChangesAction.setToolTip('When checked, the transformation files will be overwritten. If not, only the corrections are saved and will be loaded next time WarpDrive is used.')
+    self.hardenChangesAction.setCheckable(True)
+    self.hardenChangesAction.setChecked(True)
+
+    self.saveApprovedAction = qt.QAction(self)
+    self.saveApprovedAction.setText('Approve Normalization')
+    self.saveApprovedAction.setToolTip('Lead-DBS will only open non-approved normalization files (or when re-touching).')
+    self.saveApprovedAction.setCheckable(True)
+    self.saveApprovedAction.connect("triggered(bool)", self.setSubjecApproved)
+
+    menu = qt.QMenu(self)
+    menu.addAction(self.hardenChangesAction)
+    menu.addSeparator()
+    menu.addAction(self.saveApprovedAction)
+
+    self.nextAction = qt.QAction(self)
+    self.nextAction.setIcon(qt.QIcon(":/Icons/Small/SlicerSave.png"))
+    self.nextAction.setText('Save and Exit')
+    self.nextAction.connect("triggered(bool)", self.nextSubject)
+
+    nextButton = qt.QToolButton()
+    nextButton.setFixedWidth(120)
+    nextButton.setMenu(menu)
+    nextButton.setDefaultAction(self.nextAction)
+    nextButton.setPopupMode(qt.QToolButton.MenuButtonPopup)
+    nextButton.setToolButtonStyle(qt.Qt.ToolButtonTextBesideIcon)
+
+    #
+    # Set up toolbar
+    #
+    empty = qt.QWidget()
+    empty.setSizePolicy(qt.QSizePolicy.Expanding,qt.QSizePolicy.Preferred)
+    self.addWidget(empty)
+    self.addSeparator()
+    self.addWidget(subjectButton)
+    self.addSeparator()
+    self.addWidget(modalityButton)
+    self.addSeparator()
+    self.addWidget(templateButton)
+    self.addSeparator()
+    self.addWidget(nextButton)
 
     #
     # Update
     #
+    self.updateToolbarFromParameterNode()
 
-    self.nextSubject()
-
+  def updateToolbarFromParameterNode(self, caller=None, event=None):
+    currentSubjectJson = self.parameterNode.GetParameter("CurrentSubject")
+    if currentSubjectJson:
+      currentSubject = json.loads(currentSubjectJson)
+      self.subjectAction.text = "%s (%s/%s)" % (currentSubject["id"], self.parameterNode.GetParameter("CurrentSubjectNumber"), self.parameterNode.GetParameter("TotalNumberOfSubjects"))
+      self.subjectAction.toolTip = os.path.dirname(currentSubject["warpdrive_path"])
+      self.nextAction.text = 'Save and Next' if len(json.loads(self.parameterNode.GetParameter("LeadSubjects"))) else 'Save and Exit'
+      next(filter(lambda a: a.text==self.parameterNode.GetParameter("modality"), self.modalitiesGroup.actions())).setChecked(True)
+    elif self.parameterNode.GetParameter("LeadSubjects"):
+      self.nextSubject()
 
   def nextSubject(self):
     print("Going to next subject")
-    if self.parameterNode.GetParameter("CurrentSubject"):
-      keep_same_subject = self.finalizeCurrentSubject()
-      if keep_same_subject:
-        return
+    wasModified = self.parameterNode.StartModify()
+    # Get remaining subjects
     leadSubjects  = json.loads(self.parameterNode.GetParameter("LeadSubjects"))
-    if not leadSubjects:
-      print("No more subjects. Terminate Slicer")
-      slicer.util.exit()
     if isinstance(leadSubjects, dict):
       leadSubjects = [leadSubjects]
-    self.parameterNode.SetParameter("CurrentSubject", json.dumps(leadSubjects.pop(0)))
-    self.parameterNode.SetParameter("LeadSubjects", json.dumps(leadSubjects))
-    self.initializeCurrentSubject()
+    numberOfSubjects = len(leadSubjects)
+    oneOrMoreRemainingSubjects = numberOfSubjects >= 1
+    if not self.parameterNode.GetParameter("TotalNumberOfSubjects"):
+      self.parameterNode.SetParameter("TotalNumberOfSubjects", str(numberOfSubjects))
+    # Save current subject
+    slicerWillExitAfterSave = False
+    if self.parameterNode.GetParameter("CurrentSubject"):
+      slicerWillExitAfterSave = self.saveCurrentSubject(saveInExternalInstance = oneOrMoreRemainingSubjects)
+    # Load next subject
+    if oneOrMoreRemainingSubjects:
+      self.cleanUpNodes()
+      self.parameterNode.SetParameter("CurrentSubject", json.dumps(leadSubjects.pop(0)))
+      self.parameterNode.SetParameter("LeadSubjects", json.dumps(leadSubjects))
+      self.parameterNode.SetParameter("CurrentSubjectNumber", str(int(self.parameterNode.GetParameter("TotalNumberOfSubjects")) - len(leadSubjects)))
+      self.initializeCurrentSubject()
+    elif (not slicerWillExitAfterSave):
+      slicer.util.exit(0)
+    self.parameterNode.EndModify(wasModified)
+
+  def cleanUpNodes(self):
+    for param in ["SourceFiducial", "TargetFiducial", "InputNode", "ImageNode", "OutputGridTransform"]:
+      if self.parameterNode.GetNodeReference(param):
+        slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference(param))
 
   def initializeCurrentSubject(self):
     currentSubject = json.loads(self.parameterNode.GetParameter("CurrentSubject"))
@@ -112,7 +195,7 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     inputNode.SetAndObserveTransformNodeID(outputNode.GetID())
 
     if os.path.isfile(os.path.join(currentSubject["warpdrive_path"],'target.json')):
-      print("Loading previious session")
+      print("Loading previous session")
       targetFiducial = slicer.util.loadMarkups(os.path.join(currentSubject["warpdrive_path"],'target.json'))
       sourceFiducial = slicer.util.loadMarkups(os.path.join(currentSubject["warpdrive_path"],'source.json'))
     else:
@@ -129,39 +212,35 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     self.parameterNode.SetNodeReferenceID("SourceFiducial", sourceFiducial.GetID())
     self.parameterNode.SetNodeReferenceID("TargetFiducial", targetFiducial.GetID())
 
-    self.updateModalities()
-    self.onModalityPressed([], self.parameterNode.GetParameter("modality"))
-
+    self.saveApprovedAction.setChecked(LeadDBSCall.getApprovedData(currentSubject["normlog_file"]))
+    self.updateModalitiesToolButton()
+    self.updateModalitiesImages(self.parameterNode.GetParameter("modality"))
     self.setUpAtlases()
     print("Finish loading subject %s" % currentSubject["id"])
 
-
-
-  def finalizeCurrentSubject(self):
+  def saveCurrentSubject(self, saveInExternalInstance):
+    slicerWillExit = False
+    slicer.util.setSliceViewerLayers(background=None, foreground=None)
     ToolWidget.AbstractToolWidget.cleanEffects()
     currentSubject = json.loads(self.parameterNode.GetParameter("CurrentSubject"))
     sourceFiducial = self.parameterNode.GetNodeReference("SourceFiducial")
     targetFiducial = self.parameterNode.GetNodeReference("TargetFiducial")
-
     if sourceFiducial.GetNumberOfControlPoints(): # corrections made
-      if self.hardenChangesCheckBox.checked:
-        LeadDBSCall.applyChanges(self.parameterNode.GetNodeReference("InputNode"), self.parameterNode.GetNodeReference("ImageNode"), currentSubject["forward_transform"], currentSubject["inverse_transform"])
+      if self.hardenChangesAction.checked:
         sourceFiducial.Copy(targetFiducial) # set all as fixed points
       LeadDBSCall.saveSourceTarget(currentSubject["warpdrive_path"], sourceFiducial, targetFiducial)
-      LeadDBSCall.saveSceneInfo(currentSubject["warpdrive_path"])
-    else:
-      if LeadDBSCall.queryUserApproveSubject():
-        LeadDBSCall.saveApprovedData(currentSubject["normlog_file"])
-      else:
-        return 1 # user canceled 
+      LeadDBSCall.saveSceneInfo(currentSubject["warpdrive_path"])      
+      if self.hardenChangesAction.checked:
+        slicerWillExit = True
+        LeadDBSCall.applyChanges(self.parameterNode.GetNodeReference("InputNode"), 
+                                 self.parameterNode.GetNodeReference("ImageNode"), 
+                                 currentSubject["forward_transform"], 
+                                 currentSubject["inverse_transform"], 
+                                 currentSubject["warpdrive_path"],
+                                 os.path.join(self.parameterNode.GetParameter("MNIPath"), "t1.nii"),
+                                 saveInExternalInstance)
+    return slicerWillExit
 
-    # clean up
-    slicer.mrmlScene.RemoveNode(sourceFiducial)
-    slicer.mrmlScene.RemoveNode(targetFiducial)
-    slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("InputNode"))
-    slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("ImageNode"))
-    slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("OutputGridTransform"))
-    
   def setUpAtlases(self):
     print("Set up atlases")
     currentSubject = json.loads(self.parameterNode.GetParameter("CurrentSubject"))
@@ -169,9 +248,11 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     if os.path.isfile(jsonFileName):
       with open(jsonFileName, 'r') as jsonFile:
         info = json.load(jsonFile)
+    elif self.parameterNode.GetParameter("LeadAtlas"):
+      info = {"atlasNames": [self.parameterNode.GetParameter("LeadAtlas")]}
     else:
       info = {"atlasNames": []}
-    atlasNames = info["atlasNames"] if info["atlasNames"] != [] else ['DISTAL Minimal (Ewert 2017)']
+    atlasNames = info["atlasNames"] if info["atlasNames"] != [] else ['DISTAL Nano (Ewert 2017)']
     # load atlas if not already in scene
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
     folderNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLFolderDisplayNode')
@@ -187,9 +268,31 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
       except:
         print("Could not load atlas %s" % name)
 
-  def onModalityPressed(self, item, modality=None):
+  def updateModalitiesToolButton(self):
+    print("Update modalities")
+    currentSubject = json.loads(self.parameterNode.GetParameter("CurrentSubject"))
+    currentModality = self.modalitiesGroup.checkedAction().text
+    subjectModalities = list(currentSubject["anat_files"].keys())
+    for action in self.modalitiesGroup.actions():
+      self.modalitiesGroup.removeAction(action)
+      self.modalitiesMenu.removeAction(action)
+    for subjectModality in subjectModalities:
+      a = qt.QAction(self)
+      a.setText(subjectModality)
+      a.setCheckable(True)
+      a.setChecked(subjectModality==currentModality)
+      self.modalitiesGroup.addAction(a)
+    self.modalitiesMenu.addActions(self.modalitiesGroup.actions())
+    if not self.modalitiesGroup.checkedAction():
+      a.setChecked(True)
+      self.parameterNode.SetParameter("modality", a.text)
+
+  def modalityChanged(self, action):
+    self.updateModalitiesImages(action.text)
+
+  def updateModalitiesImages(self, modality=None):
     if modality is None:
-      modality = self.modalityComboBox.itemText(item.row())
+      modality = self.modalitiesGroup.checkedAction().text
     print("Loading %s modality" % modality)
     # find old nodes and delete
     slicer.mrmlScene.RemoveNode(self.parameterNode.GetNodeReference("ImageNode"))
@@ -214,20 +317,5 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     self.parameterNode.SetNodeReferenceID("ImageNode", imageNode.GetID())
     self.parameterNode.SetNodeReferenceID("TemplateNode", templateNode.GetID())
 
-
-  def updateToolbarFromParameterNode(self, caller=None, event=None):
-    self.subjectNameLabel.text = 'Subject: ' + json.loads(self.parameterNode.GetParameter("CurrentSubject"))["id"]
-    self.subjectNameLabel.toolTip = os.path.dirname(json.loads(self.parameterNode.GetParameter("CurrentSubject"))["warpdrive_path"])
-    self.nextButton.text = 'Next' if len(json.loads(self.parameterNode.GetParameter("LeadSubjects"))) else 'Exit'
-    self.modalityComboBox.setCurrentText(self.parameterNode.GetParameter("modality"))      
-
-
-  def updateModalities(self):
-    print("Update modalities")
-    currentSubject = json.loads(self.parameterNode.GetParameter("CurrentSubject"))
-    currentModality = self.modalityComboBox.currentText
-    subjectModalities = list(currentSubject["anat_files"].keys())
-    self.modalityComboBox.clear()
-    self.modalityComboBox.addItems(subjectModalities)
-    if currentModality not in subjectModalities:
-      self.parameterNode.SetParameter("modality", subjectModalities[0])
+  def setSubjecApproved(self, value):
+    LeadDBSCall.setApprovedData(json.loads(self.parameterNode.GetParameter("CurrentSubject"))["normlog_file"], int(value))

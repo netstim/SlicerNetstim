@@ -337,10 +337,12 @@ class WarpDriveCorrectionsManager(VTKObservationMixin, WarpDriveCorrectionsTable
   def updateVisibilityWidget(self, caller=None, event=None):
     if self.targetFiducialNodeID != "":
       targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
-      self.targetVisibleButton.checked = targetFiducialNode.GetDisplayNode().GetVisibility()
+      if targetFiducialNode.GetDisplayNode():
+        self.targetVisibleButton.checked = targetFiducialNode.GetDisplayNode().GetVisibility()
     if self.sourceFiducialNodeID != "":
       sourceFiducialNode = slicer.mrmlScene.GetNodeByID(self.sourceFiducialNodeID)
-      self.sourceVisibleButton.checked = sourceFiducialNode.GetDisplayNode().GetVisibility()
+      if sourceFiducialNode.GetDisplayNode():
+        self.sourceVisibleButton.checked = sourceFiducialNode.GetDisplayNode().GetVisibility()
 
   def targetFiducialModified(self, caller, event):
     self.setUpWidget()
