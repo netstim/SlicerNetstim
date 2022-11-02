@@ -37,7 +37,7 @@ class AbstractPointerEffect(AbstractEffect):
               self.previousVisibleIDs.DeleteId(id) # remove non visible models IDs
       elif key.lower() == 't':
         if self.previousBackgroundNodeID is None:
-          compositeNode = slicer.app.layoutManager().sliceWidget('Red').sliceLogic().GetSliceCompositeNode()
+          compositeNode = slicer.app.layoutManager().sliceWidget(slicer.app.layoutManager().sliceViewNames()[0]).sliceLogic().GetSliceCompositeNode()
           self.previousBackgroundNodeID = compositeNode.GetBackgroundVolumeID()
           self.previousForegroundOpacity = compositeNode.GetForegroundOpacity()
           slicer.util.setSliceViewerLayers(background = None)
