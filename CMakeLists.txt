@@ -26,6 +26,7 @@ add_subdirectory(WarpDrive)
 add_subdirectory(NetstimPreferences)
 add_subdirectory(FiducialRegistrationVariableRBF)
 add_subdirectory(CompositeToGridTransform)
+add_subdirectory(ImportACPCAutodetect)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------
