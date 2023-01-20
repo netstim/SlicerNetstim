@@ -5,8 +5,9 @@ def getGridDefinition(node):
 
   if isinstance(node, slicer.vtkMRMLScalarVolumeNode):
     grid = node.GetImageData()
-    # get origin (defined in volume node)
+    size = grid.GetDimensions()
     origin = node.GetOrigin()
+    spacing = node.GetSpacing()
 
   elif isinstance(node, slicer.vtkMRMLTransformNode):
     fp = node.GetTransformFromParent()
@@ -15,11 +16,9 @@ def getGridDefinition(node):
       grid = fp.GetDisplacementGrid()
     elif isinstance(tp, slicer.vtkOrientedGridTransform) and tp.GetDisplacementGrid():
       grid = tp.GetDisplacementGrid()
-    # get origin
     origin = grid.GetOrigin()
-
-  size = grid.GetDimensions()
-  spacing = grid.GetSpacing()
+    size = grid.GetDimensions()
+    spacing = grid.GetSpacing()
 
   return size,origin,spacing
 
