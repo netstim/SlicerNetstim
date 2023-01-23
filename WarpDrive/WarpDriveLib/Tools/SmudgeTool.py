@@ -24,10 +24,10 @@ class SmudgeToolEffect(AbstractCircleEffect):
         
     # transform data
     if not type(self).auxTransformNode:
-      size,origin,spacing = GridNodeHelper.getGridDefinition(self.parameterNode.GetNodeReference("InputNode"))
-      userSpacing = [float(self.parameterNode.GetParameter("Spacing"))] * 3
-      size = np.array(size) * (np.array(spacing) / np.array(userSpacing))
-      type(self).auxTransformNode = GridNodeHelper.emptyGridTransform([int(s) for s in size],origin,userSpacing) 
+      size, origin, spacing, directionMatrix = GridNodeHelper.getGridDefinition(self.parameterNode.GetNodeReference("InputNode"))
+      userSpacing = np.ones(3) * float(self.parameterNode.GetParameter("Spacing"))
+      size = size * (spacing / userSpacing)
+      type(self).auxTransformNode = GridNodeHelper.emptyGridTransform(size.astype(int), origin, userSpacing, directionMatrix) 
       type(self).auxTransfromRASToIJK = GridNodeHelper.getTransformRASToIJK(self.auxTransformNode)  
 
     # points
