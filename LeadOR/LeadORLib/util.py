@@ -410,7 +410,7 @@ class VTASource():
       node.SetAndObserveTransformNodeID(transformNodeID)
     slicer.util.getNode(transformNodeID).AddObserver(slicer.vtkMRMLTransformNode.TransformModifiedEvent, lambda c,e: self.transformModified())
     self.transformModified()
-    
+
   def transformModified(self):
     p = [0]*3
     self.markupsNode.GetNthControlPointPositionWorld(0,p)
@@ -437,8 +437,9 @@ class VTASource():
     return sphereFun
 
   def createROI(self):
-    ROINode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLAnnotationROINode')
-    ROINode.SetDisplayVisibility(0)
+    ROINode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsROINode')
+    ROINode.CreateDefaultDisplayNodes()
+    ROINode.GetDisplayNode().SetVisibility(False)
     return ROINode
 
   def createVTAModel(self):
@@ -453,8 +454,9 @@ class VTASource():
   def setFibersVisibility(self, state):
     if slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLFiberBundleNode'):
       fiberBundleNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLFiberBundleNode')
-      fiberBundleNode.SetAndObserveAnnotationNodeID(self.ROINode.GetID())
-      fiberBundleNode.SetSelectWithAnnotation(True)
+      # TODO: test with SlicerDMRI extension after https://github.com/SlicerDMRI/SlicerDMRI/issues/158 is resolved
+      fiberBundleNode.SetAndObserveROINodeID(self.ROINode.GetID())
+      fiberBundleNode.SetSelectWithROI(True)
       fiberBundleNode.GetDisplayNode().SetVisibility(state)
       fiberBundleNode.GetExtractFromROI().SetImplicitFunction(self.sphereFunction)
 
