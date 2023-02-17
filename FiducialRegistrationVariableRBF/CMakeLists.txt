@@ -1,6 +1,6 @@
 
 #-----------------------------------------------------------------------------
-set(MODULE_NAME fiducialRegistrationVariableRBF)
+set(MODULE_NAME FiducialRegistrationVariableRBF)
 
 #-----------------------------------------------------------------------------
 

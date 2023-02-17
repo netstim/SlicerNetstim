@@ -7,12 +7,34 @@
     <x>0</x>
     <y>0</y>
     <width>466</width>
-    <height>694</height>
+    <height>780</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="ctkCollapsibleButton" name="arcSettingsCollapsibleButton">
+    <widget class="ctkCollapsibleButton" name="IGTLinkCollapsibleButton">
+     <property name="text">
+      <string>IGTLink</string>
+     </property>
+     <property name="collapsed">
+      <bool>true</bool>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <item>
+       <widget class="QFrame" name="IGTLinkFrame">
+        <property name="frameShape">
+         <enum>QFrame::NoFrame</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Plain</enum>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="ctkCollapsibleButton" name="planningCollapsibleButton">
      <property name="text">
       <string>Planning</string>
      </property>
@@ -28,7 +50,7 @@
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="qMRMLNodeComboBox" name="trajectoryTransformComboBox">
+       <widget class="qMRMLNodeComboBox" name="planningTransformComboBox">
         <property name="nodeTypes">
          <stringlist>
           <string>vtkMRMLLinearTransformNode</string>
@@ -49,7 +71,7 @@
     </widget>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="advancedCollapsibleButton_4">
+    <widget class="ctkCollapsibleButton" name="distanceToTargetCollapsibleButton">
      <property name="text">
       <string>Distance To Target</string>
      </property>
@@ -58,13 +80,85 @@
      </property>
      <layout class="QFormLayout" name="formLayout_8">
       <item row="1" column="0">
+       <widget class="QLabel" name="label_20">
+        <property name="text">
+         <string>Transform Node: </string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignBottom|Qt::AlignLeading|Qt::AlignLeft</set>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QFrame" name="frame_3">
+        <property name="frameShape">
+         <enum>QFrame::NoFrame</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Plain</enum>
+        </property>
+        <layout class="QHBoxLayout" name="horizontalLayout_4">
+         <item>
+          <widget class="qMRMLNodeComboBox" name="distanceToTargetComboBox">
+           <property name="nodeTypes">
+            <stringlist>
+             <string>vtkMRMLLinearTransformNode</string>
+            </stringlist>
+           </property>
+           <property name="noneEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="removeEnabled">
+            <bool>false</bool>
+           </property>
+           <property name="renameEnabled">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="setDefaultResliceDriverToolButton">
+           <property name="maximumSize">
+            <size>
+             <width>20</width>
+             <height>20</height>
+            </size>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="recordSequenceToolButton">
+           <property name="maximumSize">
+            <size>
+             <width>20</width>
+             <height>20</height>
+            </size>
+           </property>
+           <property name="toolTip">
+            <string>Set up sequences to record distance to target and feature changes.</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="2" column="0">
        <widget class="QLabel" name="label_21">
         <property name="text">
          <string>Value: </string>
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
+      <item row="2" column="1">
        <widget class="qMRMLLinearTransformSlider" name="distanceToTargetSlider">
         <property name="singleStep">
          <double>0.100000000000000</double>
@@ -83,43 +177,11 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_20">
-        <property name="text">
-         <string>Transform Node: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="qMRMLNodeComboBox" name="distanceToTargetComboBox">
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLLinearTransformNode</string>
-         </stringlist>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0" colspan="2">
-       <widget class="QPushButton" name="setDefaultResliceDriverPushButton">
-        <property name="text">
-         <string>Set Default Reslice Driver</string>
-        </property>
-       </widget>
-      </item>
      </layout>
     </widget>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="MECollapsibleButton">
+    <widget class="ctkCollapsibleButton" name="trajectoriesCollapsibleButton">
      <property name="text">
       <string>Trajectories</string>
      </property>
@@ -213,26 +275,63 @@
           </widget>
          </item>
          <item row="2" column="1">
-          <widget class="QListWidget" name="unlinkedChannelsListWidget">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Ignored" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
+          <widget class="QFrame" name="frame_2">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
            </property>
-           <property name="selectionMode">
-            <enum>QAbstractItemView::MultiSelection</enum>
+           <property name="frameShadow">
+            <enum>QFrame::Plain</enum>
            </property>
-           <property name="selectionBehavior">
-            <enum>QAbstractItemView::SelectItems</enum>
-           </property>
+           <layout class="QHBoxLayout" name="horizontalLayout_3">
+            <item>
+             <widget class="QListWidget" name="unlinkedChannelsListWidget">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Ignored" vsizetype="Preferred">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Available MER channels. To link a channel to a trajectory, first select a channel and then select the corresponding trajectory.</string>
+              </property>
+              <property name="selectionMode">
+               <enum>QAbstractItemView::MultiSelection</enum>
+              </property>
+              <property name="selectionBehavior">
+               <enum>QAbstractItemView::SelectItems</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="linkChannelsToTrajectoriesPushButton">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="MinimumExpanding">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>10</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Set trajectories from channeles names. Names should be 'Anteriolateral', 'Anterior', 'Central', and so on.</string>
+              </property>
+              <property name="text">
+               <string>&gt;</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </widget>
          </item>
         </layout>
        </widget>
       </item>
       <item>
-       <widget class="QFrame" name="microElectrodeLayoutFrame">
+       <widget class="QFrame" name="trajectoriesLayoutFrame">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
           <horstretch>1</horstretch>
@@ -253,7 +352,7 @@
         </property>
         <layout class="QGridLayout" name="gridLayout">
          <item row="4" column="2">
-          <widget class="QToolButton" name="METoolButton_3">
+          <widget class="QToolButton" name="TrajectoryToolButton_3">
            <property name="minimumSize">
             <size>
              <width>30</width>
@@ -298,14 +397,14 @@ QToolButton::menu-indicator {
           </widget>
          </item>
          <item row="4" column="1">
-          <widget class="QLabel" name="leftMELabel">
+          <widget class="QLabel" name="leftTrajectoryLabel">
            <property name="text">
             <string>left label</string>
            </property>
           </widget>
          </item>
          <item row="5" column="2">
-          <widget class="QToolButton" name="METoolButton_6">
+          <widget class="QToolButton" name="TrajectoryToolButton_6">
            <property name="minimumSize">
             <size>
              <width>30</width>
@@ -350,7 +449,7 @@ QToolButton::menu-indicator {
           </widget>
          </item>
          <item row="2" column="3">
-          <widget class="QToolButton" name="METoolButton_1">
+          <widget class="QToolButton" name="TrajectoryToolButton_1">
            <property name="minimumSize">
             <size>
              <width>30</width>
@@ -405,7 +504,7 @@ QToolButton::menu-indicator {
           </widget>
          </item>
          <item row="2" column="2">
-          <widget class="QToolButton" name="METoolButton_0">
+          <widget class="QToolButton" name="TrajectoryToolButton_0">
            <property name="minimumSize">
             <size>
              <width>30</width>
@@ -450,7 +549,7 @@ QToolButton::menu-indicator {
           </widget>
          </item>
          <item row="4" column="3">
-          <widget class="QToolButton" name="METoolButton_4">
+          <widget class="QToolButton" name="TrajectoryToolButton_4">
            <property name="minimumSize">
             <size>
              <width>30</width>
@@ -508,7 +607,7 @@ QToolButton::menu-indicator {
           </widget>
          </item>
          <item row="5" column="3">
-          <widget class="QToolButton" name="METoolButton_7">
+          <widget class="QToolButton" name="TrajectoryToolButton_7">
            <property name="minimumSize">
             <size>
              <width>30</width>
@@ -553,7 +652,7 @@ QToolButton::menu-indicator {
           </widget>
          </item>
          <item row="2" column="4">
-          <widget class="QToolButton" name="METoolButton_2">
+          <widget class="QToolButton" name="TrajectoryToolButton_2">
            <property name="minimumSize">
             <size>
              <width>30</width>
@@ -598,7 +697,7 @@ QToolButton::menu-indicator {
           </widget>
          </item>
          <item row="4" column="4">
-          <widget class="QToolButton" name="METoolButton_5">
+          <widget class="QToolButton" name="TrajectoryToolButton_5">
            <property name="minimumSize">
             <size>
              <width>30</width>
@@ -643,7 +742,7 @@ QToolButton::menu-indicator {
           </widget>
          </item>
          <item row="5" column="4">
-          <widget class="QToolButton" name="METoolButton_8">
+          <widget class="QToolButton" name="TrajectoryToolButton_8">
            <property name="minimumSize">
             <size>
              <width>30</width>
@@ -688,7 +787,7 @@ QToolButton::menu-indicator {
           </widget>
          </item>
          <item row="4" column="7">
-          <widget class="QLabel" name="rightMELabel">
+          <widget class="QLabel" name="rightTrajectoryLabel">
            <property name="text">
             <string>right label</string>
            </property>
@@ -715,10 +814,10 @@ QToolButton::menu-indicator {
          </sizepolicy>
         </property>
         <property name="frameShape">
-         <enum>QFrame::StyledPanel</enum>
+         <enum>QFrame::NoFrame</enum>
         </property>
         <property name="frameShadow">
-         <enum>QFrame::Raised</enum>
+         <enum>QFrame::Plain</enum>
         </property>
         <layout class="QHBoxLayout" name="horizontalLayout">
          <item>
@@ -918,7 +1017,7 @@ QToolButton::menu-indicator {
   <connection>
    <sender>LeadOR</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>trajectoryTransformComboBox</receiver>
+   <receiver>planningTransformComboBox</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
    <hints>
     <hint type="sourcelabel">

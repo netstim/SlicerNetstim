@@ -1,19 +1,11 @@
-from email.mime import base
-import enum
-import qt, ctk, slicer
+import qt
 
 class ComboDelegate(qt.QItemDelegate):
-  def __init__(self, parent, comboItems):
+  def __init__(self, parent):
     qt.QItemDelegate.__init__(self, parent)
-    self.comboItems = comboItems
 
   def createEditor(self, parent, option, index):
-    import LeadOR
-    logic = LeadOR.LeadORLogic()
-    combo = qt.QComboBox(parent)
-    combo.addItems(self.comboItems)
-    combo.currentTextChanged.connect(lambda text, feature=index.model().data(index.siblingAtColumn(0)): logic.setFeatureMapTo(feature, text))
-    return combo
+    pass
 
   def setEditorData(self, editor, index):
     editor.blockSignals(True)
@@ -24,11 +16,39 @@ class ComboDelegate(qt.QItemDelegate):
     name = editor.currentText
     model.setData(index, name, qt.Qt.DisplayRole)
 
+class ProjectToComboDelegate(ComboDelegate):
+  def __init__(self, parent, columnNames):
+    ComboDelegate.__init__(self, parent)
+    self.columnNames = columnNames
+
+  def createEditor(self, parent, option, index):
+    comboItems = ["Tube", "Markups"]
+    combo = qt.QComboBox(parent)
+    combo.addItems(comboItems)
+    combo.currentIndexChanged.connect(lambda i: index.model().setData(index.siblingAtColumn(self.columnNames.index("Property")), ""))
+    return combo
+
+class PropertyComboDelegate(ComboDelegate):
+  def __init__(self, parent, columnNames):
+    ComboDelegate.__init__(self, parent)
+    self.columnNames = columnNames
+
+  def createEditor(self, parent, option, index):
+    projectTo = index.siblingAtColumn(self.columnNames.index("Project To")).data(qt.Qt.DisplayRole)
+    if projectTo == "Tube":
+      comboItems = ["", "RadiusAndColor", "Radius", "Color"]
+    elif projectTo == "Markups":
+      comboItems = ["", "Size", "Color"]    
+    combo = qt.QComboBox(parent)
+    combo.addItems(comboItems)
+    return combo
 
 class customStandardItemModel(qt.QStandardItemModel):
   def __init__(self , *args, **kwargs):
     self.columnNames = kwargs["columnNames"]
+    self.updateFcn = kwargs["updateFcn"]
     del kwargs["columnNames"]
+    del kwargs["updateFcn"]
     super().__init__(*args, **kwargs)
 
   def flags(self, index):
@@ -41,16 +61,11 @@ class customStandardItemModel(qt.QStandardItemModel):
       return baseFlags | qt.Qt.ItemIsEditable
 
   def setData(self , *args, **kwargs):
-    index = args[0] if args else None
-    if isinstance(index, qt.QModelIndex) and args[-1] == qt.Qt.CheckStateRole:
-      featureName = index.model().data(index.siblingAtColumn(self.columnNames.index("Name")))
-      import LeadOR
-      logic = LeadOR.LeadORLogic()
-      logic.setFeatureVisibility(featureName, bool(args[1]))
     qt.QStandardItemModel.setData(self , *args, **kwargs)
+    self.updateFcn()
 
   def headerData(self,section,orientation,role):
-    if section == 2:
+    if section == self.columnNames.index("Visible"):
       if orientation == qt.Qt.Horizontal and role == qt.Qt.DecorationRole:
         return qt.QIcon(':Icons/Small/SlicerVisibleInvisible.png')
     elif orientation == qt.Qt.Horizontal and role == qt.Qt.DisplayRole:
@@ -61,11 +76,10 @@ class FeaturesTable:
 
   RowHeight = 25
 
-  def __init__(self,view):
-    # super().__init__()
+  def __init__(self, view, updateParameterNodeFromGUIFunction):
 
-    self.columnNames = ["Name", "MapTo", "Visible"]
-    self.model = customStandardItemModel(0, len(self.columnNames), columnNames=self.columnNames)
+    self.columnNames = ["Name", "Project To", "Property", "Visible"]
+    self.model = customStandardItemModel(0, len(self.columnNames), columnNames=self.columnNames, updateFcn=updateParameterNodeFromGUIFunction)
 
     self.view = view
     self.view.setVisible(0)
@@ -76,7 +90,8 @@ class FeaturesTable:
     self.view.setModel(self.model)
     self.view.selectionModel().selectionChanged.connect(self.onSelectionChanged)
 
-    self.view.setItemDelegateForColumn(self.columnNames.index("MapTo"), ComboDelegate(self.model, ["","TubeRadiusAndColor","TubeRadius","TubeColor"]))
+    self.view.setItemDelegateForColumn(self.columnNames.index("Project To"), ProjectToComboDelegate(self.model, self.columnNames))
+    self.view.setItemDelegateForColumn(self.columnNames.index("Property"), PropertyComboDelegate(self.model, self.columnNames))
 
   def onSelectionChanged(self):
     pass
@@ -93,15 +108,52 @@ class FeaturesTable:
       self.view.setVisible(1)
       self.view.horizontalHeader().setSectionResizeMode(0, qt.QHeaderView.Stretch)
       self.view.horizontalHeader().setSectionResizeMode(1, qt.QHeaderView.Stretch)
-      self.view.horizontalHeader().setSectionResizeMode(2, qt.QHeaderView.ResizeToContents)
+      self.view.horizontalHeader().setSectionResizeMode(2, qt.QHeaderView.Stretch)
+      self.view.horizontalHeader().setSectionResizeMode(3, qt.QHeaderView.ResizeToContents)
+      index = self.model.index(self.model.rowCount()-1, self.columnNames.index("Project To"))
+      self.model.setData(index, "Tube")
 
-  def updateNthRowFromFeature(self, rowN, feature):
-    for colN,attr in enumerate(self.columnNames):
-      index = self.model.index(rowN, colN)
-      val = getattr(feature,attr)
-      if colN == self.columnNames.index("Visible"):
-        val = qt.Qt.Checked if val else qt.Qt.Unchecked
+  def removeLastRowAndSetHeight(self):
+    self.model.removeRow(self.model.rowCount()-1)
+    self.view.setFixedHeight(self.view.height-self.RowHeight)
+
+  def updateNumberOfRows(self, N):
+    if N==0:
+      while (self.model.rowCount()):
+        self.removeLastRowAndSetHeight()
+    elif N>self.model.rowCount():
+      while (N>self.model.rowCount()):
+        self.addRowAndSetVisibility()
+    else:
+      while (N<self.model.rowCount()):
+        self.removeLastRowAndSetHeight()
+
+  def updateNthRowFromFeature(self, rowNumber, feature):
+    for columnNumber,columnName in enumerate(self.columnNames):
+      featureKey = self.stringToCammelCase(columnName)
+      value = feature[featureKey]
+      index = self.model.index(rowNumber, columnNumber)
+      if columnNumber == self.columnNames.index("Visible"):
+        value = qt.Qt.Checked if value else qt.Qt.Unchecked
         role = qt.Qt.CheckStateRole
       else:
         role = qt.Qt.DisplayRole
-      self.model.setData(index, val, role)
+      self.model.setData(index, value, role)
+
+  def updateFeatureFromNthRow(self, feature, rowNumber):
+    updated = False
+    for columnNumber,columnName in enumerate(self.columnNames):
+      index = self.model.index(rowNumber, columnNumber)
+      if columnNumber == self.columnNames.index("Visible"):
+        role = qt.Qt.CheckStateRole
+      else:
+        role = qt.Qt.DisplayRole
+      value = self.model.data(index, role)
+      featureKey = self.stringToCammelCase(columnName)
+      if feature[featureKey] != value:
+        feature[featureKey] = value
+        updated = True
+    return updated
+
+  def stringToCammelCase(self,str):
+    return str[0].lower() + str[1:].replace(' ','')
