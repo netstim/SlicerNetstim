@@ -2,16 +2,12 @@
 
 # SlicerNetstim
 
-This repository contains a collection of modules for 3D Slicer on the topic of deep brain stimulation and other applications. See the modules section below for a general overview and the [quick start guide](./Documentation/QuickStartGuide/README.md) to install and load sample data in Slicer.
-
-## Quick Start
-
-Follow the [quick start guide](./Documentation/QuickStartGuide/README.md) to install the software and load a sample dataset with STN DBS planning in Slicer.
+This repository contains a collection of modules for 3D Slicer on the topic of deep brain stimulation and other applications&mdash;see the modules section below for a general overview.
 
 ## Modules provided in this extension
 
 ### Lead-OR
-The Lead-OR module provides an interface for setting micro electrodes configuration in space. We are developing a new interface with OpenEphys (see [OpenEphysLeadOR](https://github.com/netstim/OpenEphysLeadOR) and [OpenEhpysNeuroOmega](https://github.com/netstim/OpenEphysNeuroOmega)) to integrate micro electrode processing.
+The Lead-OR module provides an interface for setting micro electrodes configuration in space. See the [Lead-OR page](./LeadOR/README.md) for installation instructions and how to load a sample dataset. See the [Lead-OR section in the Lead-DBS manual](https://netstim.gitbook.io/leaddbs/lead-or/imaging-setup) for the integration with electrophysiology recordings.
 
 ### WarpDrive
 WarpDrive allows for manual interaction with the deformation fields that result from non linear registration. The idea is to be able to fix for miss-alignments between source and target images (and models). See the [WarpDrive page](./WarpDrive/README.md) for more information.
@@ -32,9 +28,9 @@ This CLI module implements similar logic as [platimatch's landmark_warp](https:/
 This CLI module creates a grid transform from a composite one. The logic is as the one in [Slicer's transforms module](https://github.com/Slicer/Slicer/blob/main/Modules/Loadable/Transforms/Logic/vtkSlicerTransformLogic.cxx#L561), but implemented in a CLI. This is useful to run it in the background and get progress indication, as used in WarpDrive.
 ## Illustrations
 
-Such a scene can be represented when using Lead-DBS and modules of this extension. See the [quick start guide](./Documentation/QuickStartGuide/README.md) to load a sample dataset in Slicer.
+Such a scene can be represented when using Lead-DBS and modules of this extension. See the [Lead-OR page](./LeadOR/README.md) to load a sample dataset in Slicer.
 
-![](Documentation/Screenshot.png?raw=true)
+![](LeadOR/Screenshots/Lead-OR_Scene.png?raw=true)
 
 ## References
 
