@@ -33,7 +33,6 @@ This module provides tools to manually fix misalignments after non linear regist
     self.parent.acknowledgementText = "" 
 
     slicer.app.connect("startupCompleted()", setUpSliceNames)
-    slicer.app.connect("startupCompleted()", registerSampleData)
 
 def setUpSliceNames():
   if slicer.app.mainApplicationName == 'SlicerForLeadDBS':
@@ -42,25 +41,6 @@ def setUpSliceNames():
       if not sliceWidget:
         continue
       sliceWidget.mrmlSliceNode().SetName(name)
-
-def registerSampleData():
-  """
-  Add data sets to Sample Data module.
-  """
-
-  import SampleData
-  iconsPath = os.path.join(os.path.dirname(__file__), 'Resources/Icons')
-
-  SampleData.SampleDataLogic.registerCustomSampleDataSource(
-    category='WarpDrive',
-    sampleName='STN Refinement',
-    thumbnailFileName=os.path.join(iconsPath, 'WarpDrive1.png'),
-    uris="https://github.com/netstim/SlicerNetstim/releases/download/SampleData/WarpDrive_STN.mrb",
-    fileNames='WarpDrive_STN.mrb',
-    loadFiles=True,
-    loadFileType='SceneFile'
-  )
-
 
 #
 # WarpDriveWidget
