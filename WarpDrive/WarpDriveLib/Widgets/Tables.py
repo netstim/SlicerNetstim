@@ -426,11 +426,33 @@ class WarpDriveCorrectionsManager(VTKObservationMixin, WarpDriveCorrectionsTable
     self.removeCorrectionByName(correctionName)
 
   def onUndoClicked(self):
+    undoSnap = self.undoSnapIfPresent()
+    if undoSnap:
+      return
     if self.model.rowCount() == 0:
       return
     index = self.model.index(self.model.rowCount()-1, 1)
     correctionName = self.model.itemData(index)[0]
     self.removeCorrectionByName(correctionName)
+
+  def undoSnapIfPresent(self):
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    markupsNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLMarkupsFiducialNode')
+    markupsNodes.UnRegister(slicer.mrmlScene)
+    for i in range(markupsNodes.GetNumberOfItems()):
+      backupNode = markupsNodes.GetItemAsObject(i)
+      if ('SnapBackUp' in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(backupNode))):
+        targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)
+        targetFiducialNode.Copy(backupNode)
+        slicer.mrmlScene.RemoveNode(backupNode)
+        targetFiducialNode.CreateDefaultDisplayNodes()
+        targetFiducialNode.GetDisplayNode().SetGlyphTypeFromString('Sphere3D')
+        targetFiducialNode.GetDisplayNode().SetGlyphScale(1)
+        targetFiducialNode.GetDisplayNode().SetPointLabelsVisibility(0)
+        for sliceNode in slicer.util.getNodesByClass('vtkMRMLSliceNode'):
+          sliceNode.Modified()
+        self.parameterNode.SetParameter("Update","true")
+        return True
 
   def removeCorrectionByName(self, correctionName):
     targetFiducialNode = slicer.mrmlScene.GetNodeByID(self.targetFiducialNodeID)

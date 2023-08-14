@@ -27,6 +27,23 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
   
 
     #
+    # Snap
+    #
+    if hasattr(slicer.modules,'antsregistration'):
+      effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'Transforms.png'))
+      effectIcon = qt.QIcon(effectPixmap)    
+      self.sanpAction = qt.QAction(self)
+      self.sanpAction.setIcon(effectIcon)
+      self.sanpAction.setText('Snap')
+      self.sanpAction.setToolTip('Calls ANTs SyN registering the image with modifications to the MNI template. Then applies the transform to the target fiducials.')
+      self.sanpAction.setCheckable(False)
+      self.sanpAction.connect("triggered(bool)", self.onSnapTriggered)
+      snapToolButton = qt.QToolButton()
+      snapToolButton.setDefaultAction(self.sanpAction)
+      snapToolButton.setToolButtonStyle(qt.Qt.ToolButtonTextBesideIcon)
+      snapToolButton.setVisible(True)
+
+    #
     # Inverse
     #
     self.inverseAction = qt.QAction(self)
@@ -148,6 +165,9 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
     empty.setSizePolicy(qt.QSizePolicy.Expanding,qt.QSizePolicy.Preferred)
     self.addWidget(empty)
     self.addSeparator()
+    if hasattr(slicer.modules,'antsregistration'):
+      self.addWidget(snapToolButton)
+      self.addSeparator()
     self.addWidget(inverseToolButton)
     self.addSeparator()
     self.addWidget(subjectButton)
@@ -422,3 +442,47 @@ class reducedToolbar(QToolBar, VTKObservationMixin):
 
   def setSubjecApproved(self, value):
     LeadDBSCall.setApprovedData(json.loads(self.parameterNode.GetParameter("CurrentSubject"))["normlog_file"], int(value))
+
+  def onSnapTriggered(self):
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    # save copy of target fiducial as backup
+    targetFiducial = self.parameterNode.GetNodeReference("TargetFiducial")
+    clonedItemID = slicer.modules.subjecthierarchy.logic().CloneSubjectHierarchyItem(shNode, shNode.GetItemByDataNode(targetFiducial))
+    shNode.SetItemAttribute(clonedItemID, 'SnapBackUp', 'true')
+    # clone image and apply transform
+    imageNode = self.parameterNode.GetNodeReference("ImageNode")
+    clonedItemID = slicer.modules.subjecthierarchy.logic().CloneSubjectHierarchyItem(shNode, shNode.GetItemByDataNode(imageNode))
+    tmpNode = shNode.GetItemDataNode(clonedItemID)
+    tmpNode.SetAndObserveTransformNodeID(self.parameterNode.GetNodeReferenceID("InputNode"))
+    tmpNode.HardenTransform()
+    # run ants showing progress
+    cliWidget = slicer.modules.antsregistrationcli.createNewWidgetRepresentation()
+    cliWidget.setWindowTitle('WarpDrive Snap')
+    for i,child in enumerate(cliWidget.children()):
+      if i != 3 and hasattr(child, 'hide'):
+        child.hide()
+    outputTransform = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
+    cliNode = self.runANTsRegistration(self.parameterNode.GetNodeReference("TemplateNode"), tmpNode, outputTransform)
+    cliWidget.setCurrentCommandLineModuleNode(cliNode)
+    cliWidget.show()
+    # add callbacks for post processing
+    cliNode.AddObserver('ModifiedEvent', lambda c,e: self.parameterNode.GetNodeReference("TargetFiducial").ApplyTransform(outputTransform.GetTransformToParent()) if c.GetStatus() & c.Completed else None) 
+    cliNode.AddObserver('ModifiedEvent', lambda c,e: self.parameterNode.SetParameter("Update","true") if c.GetStatus() & c.Completed else None) 
+    for node in [tmpNode, outputTransform, cliNode]:
+      cliNode.AddObserver('ModifiedEvent', lambda c,e,n=node: qt.QTimer.singleShot(1000, lambda: slicer.mrmlScene.RemoveNode(n)) if c.GetStatus() & c.Completed else None) 
+    cliNode.AddObserver('ModifiedEvent', lambda c,e,w=cliWidget: qt.QTimer.singleShot(500, lambda: w.delete()) if c.GetStatus() & c.Completed else None) 
+    
+  def runANTsRegistration(self, fixed, moving, outputTransform):
+    import antsRegistration
+    presetParameters = antsRegistration.PresetManager().getPresetParametersByName('QuickSyN')
+    presetParameters['stages'] = [presetParameters['stages'][-1]] # only SyN stage
+    for stage in presetParameters['stages']:
+      for metric in stage['metrics']:
+        metric['fixed'] = fixed
+        metric['moving'] = moving
+    presetParameters['outputSettings']['volume'] = None
+    presetParameters['outputSettings']['transform'] = outputTransform
+    presetParameters['outputSettings']['log'] = None
+    logic = antsRegistration.antsRegistrationLogic()
+    logic.process(**presetParameters)
+    return logic.cliNode

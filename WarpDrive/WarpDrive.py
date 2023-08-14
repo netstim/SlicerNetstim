@@ -359,6 +359,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # calculate warp
     if self._parameterNode.GetParameter("Update") == "true" and self._parameterNode.GetParameter("Running") == "false" and self.ui.autoUpdateCheckBox.checked:
+      self.logic.removeSnapBackUpIfPresent()
       self.ui.calculateButton.animateClick()
     
     # set update to false
@@ -590,7 +591,15 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
     transformNode.GetDisplayNode().SetVisibility2D(1)
     return transformNode, sourceDisplayFiducial
 
-
+  def removeSnapBackUpIfPresent(self):
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    markupsNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLMarkupsFiducialNode')
+    markupsNodes.UnRegister(slicer.mrmlScene)
+    for i in range(markupsNodes.GetNumberOfItems()):
+      backupNode = markupsNodes.GetItemAsObject(i)
+      if ('SnapBackUp' in shNode.GetItemAttributeNames(shNode.GetItemByDataNode(backupNode))):
+        slicer.mrmlScene.RemoveNode(backupNode)
+      
 #
 # WarpDriveTest
 #
