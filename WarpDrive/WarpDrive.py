@@ -4,6 +4,7 @@ import logging
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
+import json
 
 import numpy as np
 
@@ -359,7 +360,6 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # calculate warp
     if self._parameterNode.GetParameter("Update") == "true" and self._parameterNode.GetParameter("Running") == "false" and self.ui.autoUpdateCheckBox.checked:
-      self.logic.removeSnapBackUpIfPresent()
       self.ui.calculateButton.animateClick()
     
     # set update to false
@@ -439,6 +439,15 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         RBFRadius.append(targetFiducial.GetNthControlPointDescription(i))
     RBFRadius = ",".join(RBFRadius)
     stiffness = float(self._parameterNode.GetParameter("Stiffness"))
+    # snap
+    snapOptionsLoad = json.loads(self._parameterNode.GetParameter("SnapOptions"))
+    if snapOptionsLoad['SnapRun']:
+      snapOptions = None 
+    else:
+      snapOptions = snapOptionsLoad
+      self.logic.removeSnapBackUpIfPresent()
+    snapOptionsLoad['SnapRun'] = False
+    self._parameterNode.SetParameter("SnapOptions", json.dumps(snapOptionsLoad))
 
     # save current state if leadDBS call in case of error
     if self._parameterNode.GetParameter("subjectPath") != '':
@@ -456,17 +465,20 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.ui.landwarpWidget.setCurrentCommandLineModuleNode(cliNode)
       # add observer
       cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, \
-        lambda c,e,o=outputNode,v=visualizationNodes,a=auxVolumeNode: self.onStatusModifiedEvent(c,o,v,a))
+        lambda c,e,o=outputNode,v=visualizationNodes,a=auxVolumeNode,s=snapOptions: self.onStatusModifiedEvent(c,o,v,a,s))
     else:
-      self.onStatusModifiedEvent(None,outputNode,visualizationNodes,auxVolumeNode)
-    
+      self.onStatusModifiedEvent(None,outputNode,visualizationNodes,auxVolumeNode,snapOptions)
+
   
-  def onStatusModifiedEvent(self, caller, outputNode, visualizationNodes, auxVolumeNode):
+  def onStatusModifiedEvent(self, caller, outputNode, visualizationNodes, auxVolumeNode, snapOptions):
     
     if isinstance(caller, slicer.vtkMRMLCommandLineModuleNode):
       if caller.GetStatusString() == 'Completed':
         # delete cli Node
         qt.QTimer.singleShot(1000, lambda: slicer.mrmlScene.RemoveNode(caller))
+        if snapOptions and snapOptions['AutoApply'] and not snapOptions['SnapRun']:
+          self._parameterNode.SetParameter("SnapOptions", json.dumps(snapOptions))
+          self.logic.runSnap(snapOptions['Mode'], snapOptions['SourceID'], snapOptions['TargetID'], self._parameterNode.GetNodeReferenceID("TargetFiducial"))
       else:
         return
 
@@ -533,6 +545,8 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
       parameterNode.SetParameter("DrawMode", 'To Nearest Model')
     if not parameterNode.GetParameter("Running"):
       parameterNode.SetParameter("Running", "false")
+    if not parameterNode.GetParameter("SnapOptions"):
+      parameterNode.SetParameter("SnapOptions", json.dumps({'SnapRun':False, 'AutoApply': False}))
 
   def run(self, referenceVolume, outputNode, sourceFiducial, targetFiducial, RBFRadius, stiffness):
 
@@ -590,6 +604,71 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
     transformNode.GetDisplayNode().SetAndObserveGlyphPointsNode(sourceDisplayFiducial)
     transformNode.GetDisplayNode().SetVisibility2D(1)
     return transformNode, sourceDisplayFiducial
+
+  def runSnap(self, snapMode, sourceImageNodeID, targetImageNodeID, targetFiducialNodeID):
+    # check inputs
+    try:
+      sourceImageNode = slicer.util.getNode(sourceImageNodeID)
+    except:
+      raise Exception('Source Image not found by ID' + sourceImageNodeID)
+    try:
+      targetImageNode = slicer.util.getNode(targetImageNodeID)
+    except:
+      raise Exception('Target Image not found by ID' + targetImageNodeID)
+    targetFiducialNode = slicer.util.getNode(targetFiducialNodeID)
+    # save copy of target fiducial as backup
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    clonedItemID = slicer.modules.subjecthierarchy.logic().CloneSubjectHierarchyItem(shNode, shNode.GetItemByDataNode(targetFiducialNode))
+    shNode.SetItemAttribute(clonedItemID, 'SnapBackUp', 'true')
+    # clone image and apply transform
+    clonedItemID = slicer.modules.subjecthierarchy.logic().CloneSubjectHierarchyItem(shNode, shNode.GetItemByDataNode(sourceImageNode))
+    tmpNode = shNode.GetItemDataNode(clonedItemID)
+    tmpNode.SetAndObserveTransformNodeID(sourceImageNode.GetTransformNodeID())
+    tmpNode.HardenTransform()
+    # run ants showing progress
+    cliWidget = slicer.modules.antsregistrationcli.createNewWidgetRepresentation()
+    cliWidget.setWindowTitle('WarpDrive Snap')
+    for i,child in enumerate(cliWidget.children()):
+      if i != 3 and hasattr(child, 'hide'):
+        child.hide()
+    outputTransform = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
+    cliNode = self.runANTsRegistration(targetImageNode, tmpNode, outputTransform)
+    cliWidget.setCurrentCommandLineModuleNode(cliNode)
+    cliWidget.show()
+    # add callbacks for post processing
+    for node in [tmpNode, outputTransform, cliNode]:
+      cliNode.AddObserver('ModifiedEvent', lambda c,e,n=node: qt.QTimer.singleShot(1000, lambda: slicer.mrmlScene.RemoveNode(n)) if c.GetStatus() & c.Completed else None) 
+    cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, lambda c,e,w=cliWidget: qt.QTimer.singleShot(500, lambda: w.delete()) if c.GetStatus() & c.Completed else None) 
+    cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, lambda c,e,t=targetFiducialNode,o=outputTransform,m=snapMode: self.onStatusModifiedEvent(c,t,o,m))
+  
+  def onStatusModifiedEvent(self, caller, targetFiducialNode, outputTransform, snapMode):
+    if caller.GetStatusString() == 'Completed':
+      if snapMode == 'All corrections':
+        targetFiducialNode.ApplyTransform(outputTransform.GetTransformToParent())
+      elif snapMode == 'Last correction':
+        correctionName = targetFiducialNode.GetNthControlPointLabel(targetFiducialNode.GetNumberOfControlPoints()-1)
+        for i in range(targetFiducialNode.GetNumberOfControlPoints()):
+          if targetFiducialNode.GetNthControlPointLabel(i) == correctionName:
+            targetFiducialNode.SetNthControlPointPosition(i,outputTransform.GetTransformToParent().TransformDoublePoint(targetFiducialNode.GetNthControlPointPosition(i))[:3])
+      snapOptions = json.loads(self.getParameterNode().GetParameter("SnapOptions"))
+      snapOptions['SnapRun'] = True
+      self.getParameterNode().SetParameter("SnapOptions", json.dumps(snapOptions))
+      self.getParameterNode().SetParameter("Update","true")
+
+  def runANTsRegistration(self, fixed, moving, outputTransform):
+    import antsRegistration
+    presetParameters = antsRegistration.PresetManager().getPresetParametersByName('QuickSyN')
+    presetParameters['stages'] = [presetParameters['stages'][-1]] # only SyN stage
+    for stage in presetParameters['stages']:
+      for metric in stage['metrics']:
+        metric['fixed'] = fixed
+        metric['moving'] = moving
+    presetParameters['outputSettings']['volume'] = None
+    presetParameters['outputSettings']['transform'] = outputTransform
+    presetParameters['outputSettings']['log'] = None
+    logic = antsRegistration.antsRegistrationLogic()
+    logic.process(**presetParameters)
+    return logic.cliNode
 
   def removeSnapBackUpIfPresent(self):
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
