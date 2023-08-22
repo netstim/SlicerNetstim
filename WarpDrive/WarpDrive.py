@@ -477,8 +477,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # delete cli Node
         qt.QTimer.singleShot(1000, lambda: slicer.mrmlScene.RemoveNode(caller))
         if snapOptions and snapOptions['AutoApply'] and not snapOptions['SnapRun']:
-          self._parameterNode.SetParameter("SnapOptions", json.dumps(snapOptions))
-          self.logic.runSnap(snapOptions['Mode'], snapOptions['SourceID'], snapOptions['TargetID'], self._parameterNode.GetNodeReferenceID("TargetFiducial"))
+          qt.QTimer.singleShot(1000, lambda m=snapOptions['Mode'],s=snapOptions['SourceID'],t=snapOptions['TargetID'],f=self._parameterNode.GetNodeReferenceID("TargetFiducial"): self.logic.runSnap(m, s, t, f))
       else:
         return
 
@@ -622,9 +621,20 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
     shNode.SetItemAttribute(clonedItemID, 'SnapBackUp', 'true')
     # clone image and apply transform
     clonedItemID = slicer.modules.subjecthierarchy.logic().CloneSubjectHierarchyItem(shNode, shNode.GetItemByDataNode(sourceImageNode))
-    tmpNode = shNode.GetItemDataNode(clonedItemID)
-    tmpNode.SetAndObserveTransformNodeID(sourceImageNode.GetTransformNodeID())
-    tmpNode.HardenTransform()
+    tmpSourceNode = shNode.GetItemDataNode(clonedItemID)
+    tmpSourceNode.SetAndObserveTransformNodeID(sourceImageNode.GetTransformNodeID())
+    tmpSourceNode.HardenTransform()
+    # crop images to roi
+    if snapMode == 'Last correction':
+      clonedItemID = slicer.modules.subjecthierarchy.logic().CloneSubjectHierarchyItem(shNode, shNode.GetItemByDataNode(targetImageNode))
+      targetImageNode = shNode.GetItemDataNode(clonedItemID)
+      roiNode = self.getROIFromFiducial(targetFiducialNode)
+      self.cropVolumeWithROI(tmpSourceNode, roiNode)
+      self.cropVolumeWithROI(targetImageNode, roiNode)
+      slicer.mrmlScene.RemoveNode(roiNode)
+      tmpNodes = [tmpSourceNode, targetImageNode]
+    else:
+      tmpNodes = [tmpSourceNode]
     # run ants showing progress
     cliWidget = slicer.modules.antsregistrationcli.createNewWidgetRepresentation()
     cliWidget.setWindowTitle('WarpDrive Snap')
@@ -632,16 +642,15 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
       if i != 3 and hasattr(child, 'hide'):
         child.hide()
     outputTransform = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
-    cliNode = self.runANTsRegistration(targetImageNode, tmpNode, outputTransform)
+    cliNode = self.runANTsRegistration(targetImageNode, tmpSourceNode, outputTransform)
     cliWidget.setCurrentCommandLineModuleNode(cliNode)
     cliWidget.show()
     # add callbacks for post processing
-    for node in [tmpNode, outputTransform, cliNode]:
-      cliNode.AddObserver('ModifiedEvent', lambda c,e,n=node: qt.QTimer.singleShot(1000, lambda: slicer.mrmlScene.RemoveNode(n)) if c.GetStatus() & c.Completed else None) 
-    cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, lambda c,e,w=cliWidget: qt.QTimer.singleShot(500, lambda: w.delete()) if c.GetStatus() & c.Completed else None) 
-    cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, lambda c,e,t=targetFiducialNode,o=outputTransform,m=snapMode: self.onStatusModifiedEvent(c,t,o,m))
-  
-  def onStatusModifiedEvent(self, caller, targetFiducialNode, outputTransform, snapMode):
+    tmpNodes.append(outputTransform)
+    tmpNodes.append(cliNode)
+    cliNode.AddObserver(slicer.vtkMRMLCommandLineModuleNode.StatusModifiedEvent, lambda c,e,t=targetFiducialNode,o=outputTransform,m=snapMode,n=tmpNodes,w=cliWidget: self.onStatusModifiedEvent(c,t,o,m,n,w))
+
+  def onStatusModifiedEvent(self, caller, targetFiducialNode, outputTransform, snapMode, tmpNodes,cliWidget):
     if caller.GetStatusString() == 'Completed':
       if snapMode == 'All corrections':
         targetFiducialNode.ApplyTransform(outputTransform.GetTransformToParent())
@@ -654,6 +663,10 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
       snapOptions['SnapRun'] = True
       self.getParameterNode().SetParameter("SnapOptions", json.dumps(snapOptions))
       self.getParameterNode().SetParameter("Update","true")
+      # cleanup
+      qt.QTimer.singleShot(500, lambda: cliWidget.delete())
+      for node in tmpNodes:
+        qt.QTimer.singleShot(1000, lambda n=node: slicer.mrmlScene.RemoveNode(n))
 
   def runANTsRegistration(self, fixed, moving, outputTransform):
     import antsRegistration
@@ -669,6 +682,34 @@ class WarpDriveLogic(ScriptedLoadableModuleLogic):
     logic = antsRegistration.antsRegistrationLogic()
     logic.process(**presetParameters)
     return logic.cliNode
+
+  def getROIFromFiducial(self, fiducialNode):
+    pointsInROI = None
+    correctionName = fiducialNode.GetNthControlPointLabel(fiducialNode.GetNumberOfControlPoints()-1)
+    for i in range(fiducialNode.GetNumberOfControlPoints()):
+      if fiducialNode.GetNthControlPointLabel(i) == correctionName:
+        if pointsInROI is None:
+          pointsInROI = np.array([fiducialNode.GetNthControlPointPosition(i)])
+          radius = float(fiducialNode.GetNthControlPointDescription(i))
+          radius = np.max([radius, 30])
+        else:
+          pointsInROI = np.vstack((pointsInROI, fiducialNode.GetNthControlPointPosition(i)))
+    LRlimits = np.array([np.min(pointsInROI[:,0]), np.max(pointsInROI[:,0])])
+    APlimits = np.array([np.min(pointsInROI[:,1]), np.max(pointsInROI[:,1])])
+    ISlimits = np.array([np.min(pointsInROI[:,2]), np.max(pointsInROI[:,2])])
+    roiNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsROINode')
+    roiNode.GetDisplayNode().SetVisibility(0)
+    roiNode.SetCenter([(LRlimits[0]+LRlimits[1])/2, (APlimits[0]+APlimits[1])/2, (ISlimits[0]+ISlimits[1])/2])
+    roiNode.SetRadiusXYZ([(LRlimits[1]-LRlimits[0])/2 + radius, (APlimits[1]-APlimits[0])/2 + radius, (ISlimits[1]-ISlimits[0])/2 + radius])
+    return roiNode
+
+  def cropVolumeWithROI(self, volumeNode, roiNode):
+    cropVolumeParameters = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLCropVolumeParametersNode")
+    cropVolumeParameters.SetInputVolumeNodeID(volumeNode.GetID())
+    cropVolumeParameters.SetOutputVolumeNodeID(volumeNode.GetID())
+    cropVolumeParameters.SetROINodeID(roiNode.GetID())
+    cropVolumeParameters.SetVoxelBased(1)
+    slicer.modules.cropvolume.logic().Apply(cropVolumeParameters)
 
   def removeSnapBackUpIfPresent(self):
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
