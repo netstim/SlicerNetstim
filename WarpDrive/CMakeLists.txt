@@ -38,7 +38,7 @@ set(MODULE_PYTHON_RESOURCES
   Resources/Icons/Smudge.png
   Resources/Icons/SlicerVisible.png
   Resources/Icons/SlicerUndo.png
-  Resources/Icons/Transforms.png
+  Resources/Icons/Magnet.png
   Resources/UI/${MODULE_NAME}.ui
   )
 

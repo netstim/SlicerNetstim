@@ -291,7 +291,7 @@ class WarpDriveCorrectionsTable(baseTable):
       a = qt.QWidgetAction(self)
       a.setDefaultWidget(widget)
       menu.addAction(a) 
-    effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'Transforms.png'))
+    effectPixmap = qt.QPixmap(os.path.join(os.path.split(WarpDrive.__file__)[0], 'Resources', 'Icons', 'Magnet.png'))
     effectIcon = qt.QIcon(effectPixmap)    
     self.sanpAction = qt.QAction(self)
     self.sanpAction.setIcon(effectIcon)
