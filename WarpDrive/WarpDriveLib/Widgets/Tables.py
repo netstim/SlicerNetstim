@@ -356,8 +356,12 @@ class WarpDriveCorrectionsManager(VTKObservationMixin, WarpDriveCorrectionsTable
     self._updatingSnapGUI = False
 
   def visibilityChanged(self, action):
-    nodeID = self.sourceFiducialNodeID if action.text == 'Source' else ''
-    nodeID = self.targetFiducialNodeID if action.text == 'Target' else ''
+    if action.text == 'Source':
+      nodeID = self.sourceFiducialNodeID  
+    elif action.text == 'Target':
+      nodeID = self.targetFiducialNodeID
+    else:
+      nodeID = None
     if nodeID:
       slicer.util.getNode(nodeID).GetDisplayNode().SetVisibility(action.checked)
 
