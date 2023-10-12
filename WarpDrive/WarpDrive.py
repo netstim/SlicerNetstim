@@ -49,13 +49,15 @@ def registerSampleData():
   Add data sets to Sample Data module.
   """
 
-  import SampleData
-  iconsPath = os.path.join(os.path.dirname(__file__), 'Resources/Icons')
+  try:
+    import SampleData
+  except:
+    return
 
   SampleData.SampleDataLogic.registerCustomSampleDataSource(
     category='WarpDrive',
     sampleName='STN Refinement',
-    thumbnailFileName=os.path.join(iconsPath, 'WarpDrive1.png'),
+    thumbnailFileName=os.path.join(os.path.dirname(__file__), 'Resources', 'Icons', 'WarpDrive1.png'),
     uris="https://github.com/netstim/SlicerNetstim/releases/download/SampleData/WarpDrive_STN.mrb",
     fileNames='WarpDrive_STN.mrb',
     loadFiles=True,
