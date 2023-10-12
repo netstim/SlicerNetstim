@@ -33,16 +33,7 @@ This module provides tools to manually fix misalignments after non linear regist
     self.parent.helpText += self.getDefaultModuleDocumentationLink()  # TODO: verify that the default URL is correct or change it to the actual documentation
     self.parent.acknowledgementText = "" 
 
-    slicer.app.connect("startupCompleted()", setUpSliceNames)
     slicer.app.connect("startupCompleted()", registerSampleData)
-
-def setUpSliceNames():
-  if slicer.app.mainApplicationName == 'SlicerForLeadDBS':
-    for color,name in zip(['Red','Green','Yellow'],['Axial','Coronal','Sagittal']):
-      sliceWidget = slicer.app.layoutManager().sliceWidget(color)
-      if not sliceWidget:
-        continue
-      sliceWidget.mrmlSliceNode().SetName(name)
 
 def registerSampleData():
   """
