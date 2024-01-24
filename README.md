@@ -33,6 +33,6 @@ Such a scene can be represented when using Lead-DBS and modules of this extensio
 ![](LeadOR/Screenshots/Lead-OR_Scene.png?raw=true)
 
 ## References
-
+- Oxenford, S., Ríos, A. S., Hollunder, B., Neudorfer, C., Boutet, A., Elias, G. J. B., Germann, J., Loh, A., Deeb, W., Salvato, B., Almeida, L., Foote, K. D., Amaral, R., Rosenberg, P. B., Tang-Wai, D. F., Wolk, D. A., Burke, A. D., Sabbagh, M. N., Salloway, S., … Horn, A. (2024). WarpDrive: Improving spatial normalization using manual refinements. *Medical Image Analysis*, 91, 103041. [https://doi.org/10.1016/j.media.2023.103041](https://doi.org/10.1016/j.media.2023.103041)
 - Oxenford, S., Roediger, J., Neudorfer, C., Milosevic, L., Güttler, C., Spindler, P., Vajkoczy, P., Neumann, W.-J., Kühn, A., & Horn, A. (2022). Lead-OR: A multimodal platform for deep brain stimulation surgery. *ELife*, 11, e72929. [https://doi.org/10.7554/eLife.72929](https://doi.org/10.7554/eLife.72929)
 
