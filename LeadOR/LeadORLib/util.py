@@ -9,17 +9,56 @@ import warnings
 
 class Feature():
 
-  def __init__(self, projectTo):
+  def __init__(self, name, projectTo, exportXYZ):
+    self.name = name
     self.projectTo = projectTo
+    self.exportXYZ = exportXYZ
   
   def addSourceNode(self, sourceNodeID, property, visible):
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-    id = shNode.GetItemByDataNode(slicer.util.getNode(sourceNodeID))
-    shNode.SetItemAttribute(id, 'LeadORFeature', self.projectTo)
-    shNode.SetItemAttribute(id, 'Property', property)
-    shNode.SetItemAttribute(id, 'Visible', str(int(bool(visible))))
+    self.sourceNodeItem = shNode.GetItemByDataNode(slicer.util.getNode(sourceNodeID))
+    shNode.SetItemAttribute(self.sourceNodeItem, 'LeadORFeature', self.projectTo)
+    shNode.SetItemAttribute(self.sourceNodeItem, 'Property', property)
+    shNode.SetItemAttribute(self.sourceNodeItem, 'Visible', str(int(bool(visible))))
+
+  def getOrCreateExportXYZNodeID(self):
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    textNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLTextNode')
+    textNodes.UnRegister(textNodes)
+    for i in range(textNodes.GetNumberOfItems()):
+        textNode = textNodes.GetItemAsObject(i)
+        textNodeID = shNode.GetItemByDataNode(textNode)
+        if 'LeadORExportXYZ' in shNode.GetItemAttributeNames(textNodeID) and shNode.GetItemAttribute(textNodeID, 'LeadORExportXYZ') == self.name:
+          return textNode.GetID()
+    textNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTextNode', self.name + ' XYZ')
+    textNodeID = shNode.GetItemByDataNode(textNode)
+    shNode.SetItemAttribute(textNodeID, 'LeadORExportXYZ', self.name)
+    return textNode.GetID()
 
   def update(self):
+    if self.exportXYZ:
+      self.updateExportXYZ()
+    self.updateFeatures()
+  
+  def updateExportXYZ(self):
+    try:
+      import pandas as pd
+    except:
+      slicer.util.pip_install('pandas')
+      import pandas as pd
+    shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+    sourceNode = shNode.GetItemDataNode(self.sourceNodeItem)
+    df = pd.read_csv(StringIO(sourceNode.GetText()))
+    channelNames = [ch for ch in df.columns if ch != 'RecordingSiteDTT']
+    for channelName in channelNames:
+      df[channelName+'XYZ'] = pd.Series(['']*df.shape[0])
+      xyzPointsVTK = Trajectory.GetTrajectoryFromChannelName(channelName).getXYZSamplePoints(df['RecordingSiteDTT'])
+      for i in range(xyzPointsVTK.GetNumberOfPoints()):
+        df.loc[i, channelName+'XYZ'] = f"{xyzPointsVTK.GetPoint(i)[0]};{xyzPointsVTK.GetPoint(i)[1]};{xyzPointsVTK.GetPoint(i)[2]}"
+    outputNode = slicer.util.getNode(self.getOrCreateExportXYZNodeID())
+    outputNode.SetText(df.to_csv(index=False))     
+
+  def updateFeatures(self):
     sourceNodes,channelNames = self.getSourceNodesProjectingToChannels()
     for channelName in channelNames:
       trajectory = Trajectory.GetTrajectoryFromChannelName(channelName)
@@ -265,7 +304,7 @@ class Trajectory():
     featuresMarkups = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
     self.addNodeAndAttributeToSHFolder(featuresMarkups, 'featuresMarkupsNodeID')
 
-  def updateTubeModelFromValues(self, samplePoints, tubeRadiusValues, tubeColorValues):
+  def getXYZSamplePoints(self, samplePoints):
     matrix = vtk.vtkMatrix4x4()
     slicer.util.getNode(self.translationTransformNodeID).GetMatrixTransformToParent(matrix)
     transformedPoint = np.zeros(4)
@@ -273,6 +312,10 @@ class Trajectory():
     for i in range(samplePoints.shape[0]):
       matrix.MultiplyPoint(np.array([0.0,0.0,samplePoints[i],1.0]), transformedPoint)
       samplePointsVTK.InsertNextPoint(transformedPoint[:-1])
+    return samplePointsVTK
+  
+  def updateTubeModelFromValues(self, samplePoints, tubeRadiusValues, tubeColorValues):
+    samplePointsVTK = self.getXYZSamplePoints(samplePoints)
     # line source
     polyLineSource = vtk.vtkPolyLineSource()
     polyLineSource.SetPoints(samplePointsVTK)

@@ -35,7 +35,7 @@ class PropertyComboDelegate(ComboDelegate):
 
   def createEditor(self, parent, option, index):
     projectTo = index.siblingAtColumn(self.columnNames.index("Project To")).data(qt.Qt.DisplayRole)
-    comboItems = ["", "RadiusAndColor", "Radius", "Color"]
+    comboItems = ["None", "RadiusAndColor", "Radius", "Color"]
     combo = qt.QComboBox(parent)
     combo.addItems(comboItems)
     return combo
@@ -50,7 +50,7 @@ class customStandardItemModel(qt.QStandardItemModel):
 
   def flags(self, index):
     baseFlags = qt.Qt.ItemIsEnabled | qt.Qt.ItemIsSelectable
-    if index.column() == self.columnNames.index("Visible"):
+    if index.column() in [self.columnNames.index("Visible"), self.columnNames.index("Export XYZ")]:
       return baseFlags | qt.Qt.ItemIsUserCheckable
     elif index.column() == self.columnNames.index("Name"):
       return baseFlags
@@ -75,7 +75,7 @@ class FeaturesTable:
 
   def __init__(self, view, updateParameterNodeFromGUIFunction):
 
-    self.columnNames = ["Name", "Project To", "Property", "Visible"]
+    self.columnNames = ["Name", "Project To", "Property", "Visible", "Export XYZ"]
     self.model = customStandardItemModel(0, len(self.columnNames), columnNames=self.columnNames, updateFcn=updateParameterNodeFromGUIFunction)
 
     self.view = view
@@ -107,6 +107,7 @@ class FeaturesTable:
       self.view.horizontalHeader().setSectionResizeMode(1, qt.QHeaderView.Stretch)
       self.view.horizontalHeader().setSectionResizeMode(2, qt.QHeaderView.Stretch)
       self.view.horizontalHeader().setSectionResizeMode(3, qt.QHeaderView.ResizeToContents)
+      self.view.horizontalHeader().setSectionResizeMode(4, qt.QHeaderView.ResizeToContents)
       index = self.model.index(self.model.rowCount()-1, self.columnNames.index("Project To"))
       self.model.setData(index, "Tube")
 
@@ -130,7 +131,7 @@ class FeaturesTable:
       featureKey = self.stringToCammelCase(columnName)
       value = feature[featureKey]
       index = self.model.index(rowNumber, columnNumber)
-      if columnNumber == self.columnNames.index("Visible"):
+      if columnNumber in [self.columnNames.index("Visible"), self.columnNames.index("Export XYZ")]:
         value = qt.Qt.Checked if value else qt.Qt.Unchecked
         role = qt.Qt.CheckStateRole
       else:
@@ -141,7 +142,7 @@ class FeaturesTable:
     updated = False
     for columnNumber,columnName in enumerate(self.columnNames):
       index = self.model.index(rowNumber, columnNumber)
-      if columnNumber == self.columnNames.index("Visible"):
+      if columnNumber in [self.columnNames.index("Visible"), self.columnNames.index("Export XYZ")]:
         role = qt.Qt.CheckStateRole
       else:
         role = qt.Qt.DisplayRole

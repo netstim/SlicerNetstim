@@ -306,7 +306,7 @@ class LeadORWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     elif subname == "DTT":
       self._parameterNode.SetNodeReferenceID("DistanceToTargetTransform", node.GetID())
     elif isinstance(node,slicer.vtkMRMLTextNode):
-      newFeature = {'name':subname, 'sourceNodeID':node.GetID(), 'projectTo':'Tube', 'property':'', 'visible':1}
+      newFeature = {'name':subname, 'sourceNodeID':node.GetID(), 'projectTo':'Tube', 'property':'', 'visible':1, 'exportXYZ':False}
       featuresList = json.loads(self._parameterNode.GetParameter("FeaturesJson"))
       featuresList.append(newFeature)
       self._parameterNode.SetParameter("FeaturesJson", json.dumps(featuresList))
@@ -639,10 +639,10 @@ class LeadORLogic(ScriptedLoadableModuleLogic):
     else:
       Trajectory.RemoveNthTrajectory(trajectoryNumber)
 
-  def setUpFeature(self, sourceNodeID=None, name='', projectTo='Tube', property='', visible=1):
+  def setUpFeature(self, sourceNodeID=None, name='f', projectTo='Tube', property='', visible=1, exportXYZ=False):
     if sourceNodeID is None:
       return
-    feature = Feature(projectTo)
+    feature = Feature(name, projectTo, exportXYZ)
     feature.addSourceNode(sourceNodeID, property, visible)
     feature.update()
 
@@ -690,8 +690,8 @@ class LeadORTest(ScriptedLoadableModuleTest):
     """
     self.setUp()
     # self.test_LeadORWithOpenEphys()
-    # self.test_LeadORFeatures()
-    self.test_LeadORFeaturesWithNan()
+    self.test_LeadORFeatures()
+    # self.test_LeadORFeaturesWithNan()
     # self.test_LeadORFeaturesBasic()
 
   def test_LeadORFeaturesBasic(self):
@@ -709,7 +709,7 @@ class LeadORTest(ScriptedLoadableModuleTest):
     logic = LeadORLogic()
 
     logic.setUpTrajectory(4, dttNode.GetID(), True, channelName, 0, 0, 0)
-    logic.setUpFeature(featureNode.GetID(), 'feature1', 'Tube', 'RadiusAndColor')
+    logic.setUpFeature(featureNode.GetID(), 'feature1', 'Tube', 'RadiusAndColor', True, False)
 
     self.delayDisplay('Test passed')
 
@@ -722,7 +722,7 @@ class LeadORTest(ScriptedLoadableModuleTest):
 
     channelName = "Central"
 
-    featureNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTextNode','feature1')
+    featureNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTextNode','LeadOR:feature1')
     featureNode.SetText("RecordingSiteDTT,"+channelName+"\n\
                           10.0,80\n\
                           9.0,80\n\
@@ -737,7 +737,7 @@ class LeadORTest(ScriptedLoadableModuleTest):
     logic = LeadORLogic()
 
     logic.setUpTrajectory(4, dttNode.GetID(), True, channelName, 0, 0, 0)
-    logic.setUpFeature(featureNode.GetID(), 'feature1', 'Tube', 'RadiusAndColor')
+    logic.setUpFeature(featureNode.GetID(), 'feature1', 'Tube', 'RadiusAndColor', True, False)
 
     self.delayDisplay('Test passed')
 
@@ -774,8 +774,8 @@ class LeadORTest(ScriptedLoadableModuleTest):
     logic = LeadORLogic()
 
     logic.setUpTrajectory(4, dttNode.GetID(), True, channelName, 0, 0, 0)
-    logic.setUpFeature(featureNode1.GetID(), 'feature1', 'Tube', 'Radius')
-    logic.setUpFeature(featureNode2.GetID(), 'feature2', 'Tube', 'Color')
+    logic.setUpFeature(featureNode1.GetID(), 'feature1', 'Tube', 'Radius', True, False)
+    logic.setUpFeature(featureNode2.GetID(), 'feature2', 'Tube', 'Color', True, False)
 
     self.delayDisplay('Test passed')
 
