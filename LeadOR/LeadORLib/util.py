@@ -52,7 +52,7 @@ class Feature():
     channelNames = [ch for ch in df.columns if ch != 'RecordingSiteDTT']
     for channelName in channelNames:
       df[channelName+'XYZ'] = pd.Series(['']*df.shape[0])
-      xyzPointsVTK = Trajectory.GetTrajectoryFromChannelName(channelName).getXYZSamplePoints(df['RecordingSiteDTT'])
+      xyzPointsVTK = Trajectory.GetTrajectoryFromChannelName(channelName).getXYZSamplePointsWorld(df['RecordingSiteDTT'])
       for i in range(xyzPointsVTK.GetNumberOfPoints()):
         df.loc[i, channelName+'XYZ'] = f"{xyzPointsVTK.GetPoint(i)[0]};{xyzPointsVTK.GetPoint(i)[1]};{xyzPointsVTK.GetPoint(i)[2]}"
     outputNode = slicer.util.getNode(self.getOrCreateExportXYZNodeID())
@@ -304,7 +304,17 @@ class Trajectory():
     featuresMarkups = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
     self.addNodeAndAttributeToSHFolder(featuresMarkups, 'featuresMarkupsNodeID')
 
-  def getXYZSamplePoints(self, samplePoints):
+  def getXYZSamplePointsWorld(self, samplePoints):
+    samplePointsXYZ = self.getXYZSamplePointsLocal(samplePoints)
+    matrix = vtk.vtkMatrix4x4()
+    slicer.util.getNode(slicer.util.getNode(self.featuresTubeModelNodeID).GetTransformNodeID()).GetMatrixTransformToParent(matrix)
+    transformedPoint = np.zeros(4)
+    for i in range(samplePointsXYZ.GetNumberOfPoints()):
+      matrix.MultiplyPoint(samplePointsXYZ.GetPoint(i) + (1.0,), transformedPoint)
+      samplePointsXYZ.SetPoint(i, transformedPoint[:-1])
+    return samplePointsXYZ
+
+  def getXYZSamplePointsLocal(self, samplePoints):
     matrix = vtk.vtkMatrix4x4()
     slicer.util.getNode(self.translationTransformNodeID).GetMatrixTransformToParent(matrix)
     transformedPoint = np.zeros(4)
@@ -315,7 +325,7 @@ class Trajectory():
     return samplePointsVTK
   
   def updateTubeModelFromValues(self, samplePoints, tubeRadiusValues, tubeColorValues):
-    samplePointsVTK = self.getXYZSamplePoints(samplePoints)
+    samplePointsVTK = self.getXYZSamplePointsLocal(samplePoints)
     # line source
     polyLineSource = vtk.vtkPolyLineSource()
     polyLineSource.SetPoints(samplePointsVTK)
