@@ -153,7 +153,7 @@ class Trajectory():
     else:
       self.trajectoryNumber = N
       self.channelName = ''
-      self.folderID = shNode.CreateFolderItem(shNode.GetSceneItemID(), "LeadOR Trajectory " + str(self.trajectoryNumber))
+      self.folderID = shNode.CreateFolderItem(shNode.GetSceneItemID(), "Lead Trajectory " + str(self.trajectoryNumber))
       shNode.SetItemAttribute(self.folderID, 'LeadORTrajectory', str(self.trajectoryNumber))
       shNode.SetItemAttribute(self.folderID, 'ChannelName', self.channelName)
       transformID = self.createTranslationTransform()
@@ -195,7 +195,7 @@ class Trajectory():
   def setNodeNames(self):
     name = self.channelName if self.channelName != '' else str(self.trajectoryNumber)
     shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-    shNode.SetItemName(self.folderID, "LeadOR Trajectory %s" % name)
+    shNode.SetItemName(self.folderID, "Lead Trajectory %s" % name)
     slicer.util.getNode(self.translationTransformNodeID).SetName("%s: Translation Transform" % name)
     slicer.util.getNode(self.microElectrodeModelNodeID).SetName("%s: ME Model" % name)
     slicer.util.getNode(self.trajectoryLineNodeID).SetName("%s: Trajectory Line" % name)
