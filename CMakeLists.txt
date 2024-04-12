@@ -27,6 +27,7 @@ add_subdirectory(NetstimPreferences)
 add_subdirectory(FiducialRegistrationVariableRBF)
 add_subdirectory(CompositeToGridTransform)
 add_subdirectory(ImportACPCAutodetect)
+add_subdirectory(CurveToBundle)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------

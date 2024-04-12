@@ -21,6 +21,9 @@ The import atlas module implements a routine to import [Lead-DBS atlases](https:
 ### Import ACPC Autodetect
 This module implements a routine to load AC,PC and MS coordinates from the `ACPC_autodetect.mat` file generated from Lead-DBS. The ACPC transform is also computed on load.
 
+### Curve To Bundle
+This module takes a curve as an input and creates a fiberbundle, with fibers spanning varying radius along the curve.
+
 ### FiducialRegistrationVariableRBF
 This CLI module implements similar logic as [platimatch's landmark_warp](https://plastimatch.org/landmarks.html), but with variable radial basis functions. It used by WarpDrive to calculate transformations.
 
