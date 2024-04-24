@@ -7,10 +7,10 @@ project(SlicerNetstim)
 set(EXTENSION_HOMEPAGE "https://github.com/netstim/SlicerNetstim")
 set(EXTENSION_CATEGORY "Netstim")
 set(EXTENSION_CONTRIBUTORS "Simon Oxenford (Charite Berlin)")
-set(EXTENSION_DESCRIPTION "Netstim modules collection")
+set(EXTENSION_DESCRIPTION "Netstim modules collection for deep brain stimulation applications")
 set(EXTENSION_ICONURL "https://raw.githubusercontent.com/netstim/SlicerNetstim/master/logo.png")
-set(EXTENSION_SCREENSHOTURLS "https://raw.githubusercontent.com/netstim/SlicerNetstim/master/Documentation/Screenshot.png")
-set(EXTENSION_DEPENDS "NA") # Specified as a list or "NA" if no dependencies
+set(EXTENSION_SCREENSHOTURLS "https://raw.githubusercontent.com/netstim/SlicerNetstim/master/LeadOR/Screenshots/Lead-OR_Scene.png")
+set(EXTENSION_DEPENDS "SlicerRT MarkupsToModel") # Specified as a list or "NA" if no dependencies
 
 #-----------------------------------------------------------------------------
 # Extension dependencies
