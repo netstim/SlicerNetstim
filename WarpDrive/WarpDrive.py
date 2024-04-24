@@ -97,7 +97,6 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     for toolWidget in toolWidgets:
       toolsLayout.addWidget(toolWidget.effectButton)
-      toolWidget.effectButton.connect('clicked(bool)', self.ensureInputOutputNodes)
 
     self.ui.drawModeMenu = toolWidgets[2].effectButton.menu()
     self.ui.shrinkExpandModeMenu = next(filter(lambda x: isinstance(x,qt.QMenu), toolWidgets[4].effectButton.menu().children()))
@@ -105,8 +104,9 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.shrinkExpandButton = toolWidgets[4].effectButton
 
     # Add Tree View
+    self.correctionsManager = Tables.WarpDriveCorrectionsManager()
     correctionsLayout = qt.QVBoxLayout(self.ui.correctionsFrame)
-    correctionsLayout.addWidget(Tables.WarpDriveCorrectionsManager())
+    correctionsLayout.addWidget(self.correctionsManager)
 
     self.atlasesTable = Tables.AtlasesTable()
     atlasesLayout = qt.QVBoxLayout(self.ui.atlasesFrame)
@@ -246,6 +246,7 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     Called when the application closes and the module widget is destroyed.
     """
     self.cleanTools()
+    self.correctionsManager.removeObservers()
     self.removeObservers()
 
   def exit(self):
@@ -354,12 +355,10 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.stiffnessSpinBox.value = float(self._parameterNode.GetParameter("Stiffness"))
 
     self.ui.outputSelector.enabled = self._parameterNode.GetNodeReference("InputNode")
-    self.ui.toolsCollapsibleButton.enabled = self._parameterNode.GetNodeReference("InputNode")
-    
-    allIONodesAvailable = all([self._parameterNode.GetNodeReference(name) for name in ("InputNode", "SourceFiducial", "TargetFiducial", "OutputGridTransform")])
-    self.ui.tabWidget.enabled = allIONodesAvailable
-    self.ui.outputCollapsibleButton.enabled = allIONodesAvailable
-    self.ui.calculateButton.enabled = allIONodesAvailable
+    self.ui.toolsCollapsibleButton.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
+    self.ui.tabWidget.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
+    self.ui.outputCollapsibleButton.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
+    self.ui.calculateButton.enabled = self._parameterNode.GetNodeReference("InputNode") and self._parameterNode.GetNodeReference("OutputGridTransform")
 
     next(filter(lambda a: a.text == self._parameterNode.GetParameter("DrawMode"), self.ui.drawModeMenu.actions())).setChecked(True)
     next(filter(lambda a: a.text == self._parameterNode.GetParameter("ShrinkExpandMode"), self.ui.shrinkExpandModeMenu.actions())).setChecked(True)
@@ -411,17 +410,6 @@ class WarpDriveWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     self._parameterNode.EndModify(wasModified)
 
-  def ensureInputOutputNodes(self):
-    wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
-
-    if not self._parameterNode.GetNodeReference("SourceFiducial"):
-      self._parameterNode.SetNodeReferenceID("SourceFiducial", slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode', slicer.mrmlScene.GenerateUniqueName('Source')).GetID())
-    if not self._parameterNode.GetNodeReference("TargetFiducial"):
-      self._parameterNode.SetNodeReferenceID("TargetFiducial", slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode', slicer.mrmlScene.GenerateUniqueName('Target')).GetID())
-    if not self._parameterNode.GetNodeReference("OutputGridTransform"):
-      self._parameterNode.SetNodeReferenceID("OutputGridTransform", slicer.mrmlScene.AddNewNodeByClass('vtkMRMLGridTransformNode', slicer.mrmlScene.GenerateUniqueName('Refined Transform')).GetID())
-
-    self._parameterNode.EndModify(wasModified)
 
   def onOutputNodeChanged(self):
     # unset if output is the same as input
