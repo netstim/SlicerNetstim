@@ -592,7 +592,7 @@ class CurveToBundleLogic(ScriptedLoadableModuleLogic):
         if not parameterNode.GetParameter("FibersSampleType"):
             parameterNode.SetParameter("FibersSampleType", "normal")
         if not parameterNode.GetParameter("SineCycles"):
-            parameterNode.SetParameter("SineCycles", "2")
+            parameterNode.SetParameter("SineCycles", "0.5")
 
     def getInterpolatedSpreads(self, spreadValues, spreadPositions, splineOrder, spreadExtrapolate, numberOfPoints, inputIsClosedCurve):
         numberOfItemsToInterpolate = len(spreadValues)
