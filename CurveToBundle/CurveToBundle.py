@@ -704,7 +704,7 @@ class CurveToBundleLogic(ScriptedLoadableModuleLogic):
         if betweenCurve is not None:
             betweenCurveResampled = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsClosedCurveNode" if inputIsClosedCurve else "vtkMRMLMarkupsCurveNode")
             betweenCurveResampled.Copy(betweenCurve)
-            betweenCurveResampled.ResampleCurveWorld(betweenCurveResampled.GetCurveLengthWorld() / max((numberOfPoints - 1), 1))
+            betweenCurveResampled.ResampleCurveWorld(betweenCurveResampled.GetCurveLengthWorld() / max((numberOfPoints - (0 if inputIsClosedCurve else 1)), 1))
             betweenCurvePoints = np.array([betweenCurveResampled.GetNthControlPointPosition(i) for i in range(numberOfPoints)])
 
         spreads = self.getInterpolatedSpreads(spreadValues, spreadPositions, splineOrder, spreadExtrapolate, numberOfPoints, inputIsClosedCurve)
