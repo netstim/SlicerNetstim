@@ -21,7 +21,7 @@ class ImportACPCAutodetect(ScriptedLoadableModule):
         ScriptedLoadableModule.__init__(self, parent)
         self.parent.title = "ImportACPCAutodetect"  # TODO: make this more human readable by adding spaces
         self.parent.categories = [""]
-        self.parent.dependencies = [] 
+        self.parent.dependencies = []
         self.parent.contributors = ["Simon Oxenford (Charite Berlin)"]
         self.parent.helpText = ""
         self.parent.hidden = True
@@ -68,11 +68,11 @@ class ImportACPCAutodetectLogic(ScriptedLoadableModuleLogic):
         acpcNode.GetDisplayNode().SetVisibility(False)
         acpcNode.AddControlPoint(AC, 'AC')
         acpcNode.AddControlPoint(PC, 'PC')
-        
+
         outputNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode', 'ACPC_transform')
         parameters = {}
         parameters['centerVolume'] = True
-        parameters['OutputTransform'] =  outputNode.GetID()   
+        parameters['OutputTransform'] =  outputNode.GetID()
         parameters['ACPC'] = acpcNode.GetID()
         parameters['Midline'] = midlineNode.GetID()
         slicer.cli.run(slicer.modules.acpctransform, None, parameters, wait_for_completion=True, update_display=False)
@@ -94,7 +94,7 @@ class ImportACPCAutodetectLogic(ScriptedLoadableModuleLogic):
             import h5py
         except:
             slicer.util.pip_install('h5py')
-        import h5py    
+        import h5py
         with h5py.File(filePath, 'r') as ACPCFile:
             AC = ACPCFile['AC'][:].flatten()
             PC = ACPCFile['PC'][:].flatten()
@@ -123,7 +123,7 @@ class ImportACPCAutodetectFileReader:
   def canLoadFile(self, filePath):
     # filename must be atlas_index.mat
     filename = os.path.split(filePath)[1]
-    return filename == "ACPC_autodetect.mat"
+    return (filename == "ACPC_autodetect.mat") | (filename.endswith("_desc-acpcautodetect.mat"))
 
   def load(self, properties):
     try:
