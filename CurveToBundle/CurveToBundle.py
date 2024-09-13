@@ -13,6 +13,7 @@ import numpy as np
 from CurveToBundleLib.Widgets.multiHandleSlider import MultiHandleSliderWidget
 from CurveToBundleLib.Widgets.multiModelSelector import MultiModelSelectorWidget
 
+import time
 #
 # CurveToBundle
 #
@@ -592,7 +593,7 @@ class CurveToBundleLogic(ScriptedLoadableModuleLogic):
         if not parameterNode.GetParameter("FibersSampleType"):
             parameterNode.SetParameter("FibersSampleType", "normal")
         if not parameterNode.GetParameter("SineCycles"):
-            parameterNode.SetParameter("SineCycles", "0.5")
+            parameterNode.SetParameter("SineCycles", "2")
 
     def getInterpolatedSpreads(self, spreadValues, spreadPositions, splineOrder, spreadExtrapolate, numberOfPoints, inputIsClosedCurve):
         numberOfItemsToInterpolate = len(spreadValues)
@@ -696,7 +697,7 @@ class CurveToBundleLogic(ScriptedLoadableModuleLogic):
 
         resampledCurve = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsClosedCurveNode" if inputIsClosedCurve else "vtkMRMLMarkupsCurveNode")
         resampledCurve.Copy(inputCurve)
-        resampledCurve.ResampleCurveWorld(1) # 1mm spacing
+        resampledCurve.ResampleCurveWorld(0.2) # 1mm spacing
 
         numberOfPoints = resampledCurve.GetNumberOfControlPoints()
         curvePoints = np.array([resampledCurve.GetNthControlPointPosition(i) for i in range(numberOfPoints)])
@@ -704,48 +705,68 @@ class CurveToBundleLogic(ScriptedLoadableModuleLogic):
         if betweenCurve is not None:
             betweenCurveResampled = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsClosedCurveNode" if inputIsClosedCurve else "vtkMRMLMarkupsCurveNode")
             betweenCurveResampled.Copy(betweenCurve)
-            betweenCurveResampled.ResampleCurveWorld(betweenCurveResampled.GetCurveLengthWorld() / max((numberOfPoints - (0 if inputIsClosedCurve else 1)), 1))
+            betweenCurveResampled.ResampleCurveWorld(betweenCurveResampled.GetCurveLengthWorld() / max((numberOfPoints - 1), 1))
             betweenCurvePoints = np.array([betweenCurveResampled.GetNthControlPointPosition(i) for i in range(numberOfPoints)])
 
         spreads = self.getInterpolatedSpreads(spreadValues, spreadPositions, splineOrder, spreadExtrapolate, numberOfPoints, inputIsClosedCurve)
         
         outPoints = vtk.vtkPoints()
         outLines = vtk.vtkCellArray()
+       
         id = 0
-        for _ in range(numberOfFibers):
-            displacements = self.getPointDisplacements(fibersSampleType, sineCycles, spreads, numberOfPoints)
-            if betweenCurve is None:
-                localPoints = curvePoints
-            else:
-                localPoints = self.getPointsBetween(betweenCurvePoints, curvePoints)
-            transformedPoints = localPoints + displacements
-            validPoints = self.applyStartEndConstraints(transformedPoints, startModel, endModel)
-            if validPoints.shape[0] < 2:
-                continue
-            line = vtk.vtkPolyLine()
-            for i in range(validPoints.shape[0]):
-                outPoints.InsertNextPoint(validPoints[i])
-                line.GetPointIds().InsertNextId(id)
-                id += 1
-            if inputIsClosedCurve:
-                line.GetPointIds().InsertNextId(id - validPoints.shape[0])
-            outLines.InsertNextCell(line)
+        FinalFiberCount = 0
+        iterationCount = 0
+        start = time.perf_counter()
+
+        while FinalFiberCount < numberOfFibers:
+            iterationCount +=1 
+            MissingFiberCount = (numberOfFibers - FinalFiberCount)
+            for x in range(MissingFiberCount):
+                displacements = self.getPointDisplacements(fibersSampleType, sineCycles, spreads, numberOfPoints)
+                if betweenCurve is None:
+                    localPoints = curvePoints
+                else:
+                    localPoints = self.getPointsBetween(betweenCurvePoints, curvePoints)
+                
+                transformedPoints = localPoints + displacements
+                validPoints = self.applyStartEndConstraints(transformedPoints, startModel, endModel)
+
+                if validPoints.shape[0] < 2:
+                    continue
+                
+                line = vtk.vtkPolyLine()
+                for i in range(validPoints.shape[0]):
+                    outPoints.InsertNextPoint(validPoints[i])
+                    line.GetPointIds().InsertNextId(id)
+                    id += 1
+                if inputIsClosedCurve:
+                    line.GetPointIds().InsertNextId(id - validPoints.shape[0])
+                outLines.InsertNextCell(line)
+
+            pd = vtk.vtkPolyData()
+            pd.SetPoints(outPoints)
+            pd.SetLines(outLines)
+
+            self.applyInsideOutsideConstraints(pd, insideModels, outsideModels)
+
+            FinalFiberCount = pd.GetLines().GetNumberOfCells()
+            if iterationCount > 1500 and FinalFiberCount < 1 :
+                raise RuntimeError("The constraint criteria cannot be met after " + str(iterationCount) + " iterations")
+
+        end = time.perf_counter()
+        elapsed = end - start
+        print(f'Time taken: {elapsed:.6f} seconds')
         
         slicer.mrmlScene.RemoveNode(resampledCurve)
         if betweenCurve is not None:
             slicer.mrmlScene.RemoveNode(betweenCurveResampled)
-
-        pd = vtk.vtkPolyData()
-        pd.SetPoints(outPoints)
-        pd.SetLines(outLines)
-
-        self.applyInsideOutsideConstraints(pd, insideModels, outsideModels)
-
+            
         outputBundle.SetAndObservePolyData(pd)
         outputBundle.CreateDefaultDisplayNodes()
         outputBundle.GetDisplayNode().SetColorModeToPointFiberOrientation()
 
         return pd.GetLines().GetNumberOfCells()
+
 
     def getSpreadForNewPosition(self, positions, spreads, newPosition):
         sortedPos, sortedSpreads = zip(*sorted(zip(positions, spreads), key=lambda x: x[0]))
