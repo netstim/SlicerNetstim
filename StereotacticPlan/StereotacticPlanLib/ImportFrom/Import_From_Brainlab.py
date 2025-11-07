@@ -223,6 +223,7 @@ class StereotaxyReport():
         s = " ".join(s.strip().split())  # normalise spaces
         for fmt in (
             '%d-%b-%Y, %I:%M %p',   # 29-Aug-2022, 7:12 AM
+            '%d-%b.-%Y, %H:%M',     # 17-nov.-2014, 17:43 
             '%d-%b-%Y, %H:%M',      # 29-Aug-2022, 07:12
             '%m/%d/%Y, %I:%M %p',   # 08/29/2022, 7:12 AM
             '%Y-%m-%d %H:%M:%S',    # 2022-08-29 07:12:00
