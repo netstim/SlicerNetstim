@@ -157,7 +157,7 @@ class StereotaxyReport():
         return outDict
 
     def getPatientInformation(self):
-        y0 = self.getTextHeightInPDF(0, 'Patient\s?Name.*', 'left')
+        y0 = self.getTextHeightInPDF(0, r'Patient\s?Name.*', 'left')
         cropRegion = (0, y0-10, self.pdfWidth/2, y0+90)
         tableSettings = {
             "vertical_strategy": "text",
@@ -194,7 +194,7 @@ class StereotaxyReport():
                 cropBoundingBox = (0, 350 , self.pdfWidth, 395)
             elif queryPoint in ['AC', 'PC', 'MS']:
                 PDFPage = 1
-                y0 = self.getTextHeightInPDF(PDFPage, 'AC\s?Point.*', 'left')
+                y0 = self.getTextHeightInPDF(PDFPage, r'AC\s?Point.*', 'left')
                 cropBoundingBox = (0, y0-10 , self.pdfWidth/2, y0+50)
         elif queryCoordinateSystem == 'DICOM':
             PDFPage = 1
@@ -217,10 +217,28 @@ class StereotaxyReport():
                                 [  0,  0,  0,  1]])
             xyz_flt = np.dot(toRAS, np.append(xyz_flt, 1))[:3]
         return ','.join([str(x) for x in xyz_flt])
+    
+
+    def parse_brainlab_datetime(self,s: str) -> datetime:
+        s = " ".join(s.strip().split())  # normalise spaces
+        for fmt in (
+            '%d-%b-%Y, %I:%M %p',   # 29-Aug-2022, 7:12 AM
+            '%d-%b.-%Y, %H:%M',     # 17-nov.-2014, 17:43 
+            '%d-%b-%Y, %H:%M',      # 29-Aug-2022, 07:12
+            '%m/%d/%Y, %I:%M %p',   # 08/29/2022, 7:12 AM
+            '%Y-%m-%d %H:%M:%S',    # 2022-08-29 07:12:00
+            '%d.%m.%Y %H:%M',       # 29.08.2022 07:12
+        ):
+            try:
+                return datetime.strptime(s, fmt)
+            except ValueError:
+                pass
+        raise ValueError(f"Unrecognised date/time format: {s!r}")
+
 
     def getDICOMInformation(self):
-        y0 = self.getTextHeightInPDF(1, 'DICOM\s?Coordinates.*', 'right') + 20
-        y1 = self.getTextHeightInPDF(1, 'X\s*Y\s*Z.*', 'right')
+        y0 = self.getTextHeightInPDF(1, r'DICOM\s?Coordinates.*', 'right') + 20
+        y1 = self.getTextHeightInPDF(1, r'X\s*Y\s*Z.*', 'right')
         cropRegion = (self.pdfWidth/2, y0 , self.pdfWidth, y1)
         tableSettings = {
             "vertical_strategy": "explicit",
@@ -233,10 +251,7 @@ class StereotaxyReport():
         outList = self.pdf.pages[1].crop(cropRegion).extract_table(tableSettings)
         outDict = {self.onlyAlphaNumeric(r[0]):r[1].replace('\n','') for r in outList}
         outDict['SeriesDescription'] = outDict['ImageSet']
-        try: # matches 2/25/2014, 5:15 PM
-            outDict['AcquisitionDateTime'] = datetime.strptime(outDict['Scanned'], '%m/%d/%Y, %I:%M %p')
-        except: # matches 17-nov.-2014, 17:43
-            outDict['AcquisitionDateTime'] = datetime.strptime(outDict['Scanned'], '%d-%b.-%Y, %H:%M')
+        outDict['AcquisitionDateTime'] = self.parse_brainlab_datetime(outDict['Scanned'])
         return outDict
 
     def getTextHeightInPDF(self, pageNumber, textPattern, side=None):
